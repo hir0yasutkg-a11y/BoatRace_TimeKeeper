@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+venv/
+.venv/
+__pycache__/
+
+# Build artifacts
+dist/
+build/
+out/
+*.pyc
+
+# Local settings / Temporary
+.env
+.env.local
+tmp/
+.gemini/
+.claude/
+.cursor/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation / Artifacts (keep these if you want Claude to see them, but some might be too large)
+# brain/ (Antigravity's internal state)

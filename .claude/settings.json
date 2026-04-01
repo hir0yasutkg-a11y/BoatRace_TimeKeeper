@@ -1,0 +1,12 @@
+{
+  "project_name": "Boat Race Predictor",
+  "ai_collaboration": {
+    "lead_agent": "Antigravity",
+    "execution_agent": "Claude Code",
+    "rules": [
+      "Ask for advice if the same error persists for 3 iterations.",
+      "Check CLAUDE.md for role division and project context.",
+      "Update TODO.md on task completion or blockage."
+    ]
+  }
+}
