@@ -7,8 +7,7 @@ import {
   TrendingUp, 
   Clock,
   MapPin,
-  Share,
-  PlusSquare
+  Share
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import './index.css';
