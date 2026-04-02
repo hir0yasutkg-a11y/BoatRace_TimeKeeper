@@ -307,6 +307,25 @@ export default function App() {
                 );
               })}
             </div>
+            
+            <div className="comments-section mt-6">
+              <h3 className="section-title flex items-center gap-2 mb-4">
+                <span className="icon">💬</span> 選手コメント・調整情報
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {racers.map(r => (
+                  <div key={r.waku} className="comment-card bg-slate-50/50 p-3 rounded-xl border border-slate-100 flex gap-3">
+                    <div className={`w-badge w-${r.waku} flex-shrink-0`}>{r.waku}</div>
+                    <div className="flex-1">
+                      <div className="text-sm font-bold text-slate-500 mb-1">{r.name}</div>
+                      <div className="text-sm text-slate-700 leading-relaxed italic">
+                        {r.comment || <span className="opacity-40">コメントなし</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </section>
         </div>
 

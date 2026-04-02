@@ -203,12 +203,38 @@ h2 {
 }
 
 .comment-cell {
-  max-width: 200px;
-  white-space: normal !important;
-  text-align: left !important;
-  font-size: 0.8rem !important;
-  color: var(--text-sub);
-  line-height: 1.2;
+  display: none; /* Hide in main table as requested */
+}
+
+/* Comments Section */
+.comments-section {
+  background: #fdfdfd;
+  border: 3px dashed var(--border-dark);
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 25px;
+}
+
+.comment-card {
+  transition: transform 0.2s;
+}
+
+.comment-card:hover {
+  transform: translateY(-2px);
+  background: #fff;
+}
+
+.waku-badge-large {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 3px solid var(--border-dark);
+  font-size: 1.2rem;
+  font-weight: 900;
+  box-shadow: 2px 2px 0px var(--border-dark);
 }
 
 .start-line {

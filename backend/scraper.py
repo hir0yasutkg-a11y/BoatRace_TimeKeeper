@@ -128,15 +128,45 @@ def fetch_cyber_data(jcd: str, rno: int, hd: str):
         if res.status_code == 200:
             res.encoding = "shift_jis" if jcd == "15" else res.apparent_encoding
             soup = BeautifulSoup(res.text, 'lxml')
-            table = soup.select_one('table.table1') or soup.find('table')
-            if table:
-                for row in table.find_all('tr'):
-                    tds = row.find_all('td')
-                    if len(tds) >= 3:
-                        w_text = tds[0].get_text(strip=True)
-                        if w_text.isdigit():
-                            idx = 2 if len(tds) >= 3 else 1
-                            comments_map[int(w_text)] = tds[idx].get_text(strip=True)
+            
+            if jcd == "15":
+                # 丸亀特有のパース (yoso05XX.htm)
+                # 枠番を特定してその後のテキストを取得
+                for w in range(1, 7):
+                    # 名前のリンクを探す
+                    names = soup.find_all('a', href=re.compile(r'profile\?toban='))
+                    for name_link in names:
+                        parent = name_link.parent
+                        # 丸亀の構造: <p class="name"><a>名前</a></p><p>コメント</p> 
+                        # または単にテキストとして並んでいる場合を考慮
+                        # 枠番が判定できる要素から探す
+                        text_content = soup.get_text()
+                        # "当日" または "前日" から始まるテキストを探す
+                        patterns = [
+                            rf"{w}[:：]\s*(当日|前日).*?(?=\d[:：]|$)",
+                            rf"(当日|前日).*?(?=\n|$)" # シンプルに
+                        ]
+                        # 実際にはHTMLを直接見て、名前の後の<p>タグなどを狙う
+                        containers = soup.find_all(['p', 'div', 'td'])
+                        for i, cell in enumerate(containers):
+                            if name_link.text.strip() in cell.text:
+                                # その次の要素がコメントであることが多い
+                                for next_cell in containers[i+1:i+5]:
+                                    txt = next_cell.text.strip()
+                                    if "当日" in txt or "前日" in txt:
+                                        comments_map[w] = txt
+                                        break
+                                if w in comments_map: break
+            else:
+                table = soup.select_one('table.table1') or soup.find('table')
+                if table:
+                    for row in table.find_all('tr'):
+                        tds = row.find_all('td')
+                        if len(tds) >= 3:
+                            w_text = tds[0].get_text(strip=True)
+                            if w_text.isdigit():
+                                idx = 2 if len(tds) >= 3 else 1
+                                comments_map[int(w_text)] = tds[idx].get_text(strip=True)
     except: pass
 
     # 展示データ
