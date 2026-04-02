@@ -111,14 +111,14 @@ def fetch_cyber_data(jcd: str, rno: int, hd: str):
     results = {"exhibitions": []}
     headers = {"User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"}
     
-    # 選手コメント
-    if "index.php" in base_url or jcd in ["01", "14", "18", "21"]:
+    # 選手コメント取得
+    if jcd == "15":
+        comment_url = f"https://www.marugameboat.jp/asp/kyogi/15/pc/syusso06{rno:02}.htm"
+    elif "index.php" in base_url or jcd in ["01", "14", "18", "21"]:
         param = "yosou-syussou"
         if jcd in ["18", "21"]: param = "raceinfo-racer_comment"
         comment_url = f"{base_url}/index.php?page={param}&race={rno}"
         if jcd in ["18", "21"]: comment_url = f"{base_url}/index.php?page={param}&rno={rno}"
-    elif jcd == "15": # 丸亀
-        comment_url = f"https://www.marugameboat.jp/asp/kyogi/15/pc/yoso05{rno:02}.htm"
     else:
         comment_url = f"{base_url}/06comment.asp?r={rno}"
         
@@ -130,28 +130,18 @@ def fetch_cyber_data(jcd: str, rno: int, hd: str):
             soup = BeautifulSoup(res.text, 'lxml')
             
             if jcd == "15":
-                # 丸亀特有のパース (yoso05XX.htm)
-                # ページ全体のテキストから対象枠のコメント（当日または前日）を特定
-                text_content = soup.get_text()
-                for w in range(1, 7):
-                    # 「w: 選手名」の後のコメントを探すパターン
-                    # 丸亀のテキスト形式: "w:名前 当日コメント... \n" または "w:名前 \n 当日コメント..."
-                    # 数値（展示タイム等）を避けるため、(当日|前日)を含む、ある程度の長さの文字列を狙う
-                    pattern = rf"{w}[:：].*?(当日|前日)([^0-9]+.*?)(?=\n|$|\d[:：])"
-                    match = re.search(pattern, text_content, re.DOTALL)
-                    if match:
-                        comments_map[w] = (match.group(1) + match.group(2)).strip()
-                    else:
-                        # フォールバック: 名前リンク付近から探す
-                        name_link = soup.find('a', href=re.compile(rf'profile\?toban=')) # 暫定
-                        # ... (以前のロジックをより厳格にして維持)
-                        containers = soup.find_all(['p', 'div', 'td'])
-                        for i, cell in enumerate(containers):
-                            if "当日" in cell.text or "前日" in cell.text:
-                                if len(cell.text.strip()) > 10: # 短すぎる（数値のみ等）は除外
-                                    # 枠番の判定が難しい場合は順番で割り当てる等の処理が必要だが
-                                    # ここでは一旦マッチしたものを入れる
-                                    pass
+                # 丸亀特有のパース: div#yoso03_04 内のテーブル
+                comment_area = soup.select_one('div#yoso03_04')
+                if comment_area:
+                    table = comment_area.select_one('table.table01')
+                    if table:
+                        for row in table.select('tr'):
+                            tds = row.find_all('td')
+                            if len(tds) >= 3:
+                                w_text = tds[0].get_text(strip=True)
+                                if w_text.isdigit():
+                                    # 3列目がコメント本文
+                                    comments_map[int(w_text)] = tds[2].get_text(strip=True)
             else:
                 table = soup.select_one('table.table1') or soup.find('table')
                 if table:
@@ -164,15 +154,15 @@ def fetch_cyber_data(jcd: str, rno: int, hd: str):
                                 comments_map[int(w_text)] = tds[idx].get_text(strip=True)
     except: pass
 
-    # 展示データ
-    if "index.php" in base_url or jcd in ["01", "14", "18", "21"]:
+    # 展示データ取得
+    if jcd == "15":
+        exh_url = f"https://www.marugameboat.jp/asp/kyogi/15/pc/syusso06{rno:02}.htm"
+    elif "index.php" in base_url or jcd in ["01", "14", "18", "21"]:
         exh_param = "yosou-chokuzen"
         if jcd == "18": exh_param = "raceinfo-original_exhibition"
         elif jcd == "21": exh_param = "raceinfo-exhibition"
         exh_url = f"{base_url}/index.php?page={exh_param}&race={rno}"
         if jcd in ["18", "21"]: exh_url = f"{base_url}/index.php?page={exh_param}&rno={rno}"
-    elif jcd == "15":
-        exh_url = f"https://www.marugameboat.jp/asp/kyogi/15/pc/yoso05{rno:02}.htm"
     else:
         exh_url = f"{base_url}/06original.asp?r={rno}"
 
@@ -181,22 +171,45 @@ def fetch_cyber_data(jcd: str, rno: int, hd: str):
         if res.status_code == 200:
             res.encoding = "shift_jis" if jcd == "15" else res.apparent_encoding
             soup = BeautifulSoup(res.text, 'lxml')
-            table = soup.select_one('table.table1') or soup.find('table')
-            if table:
-                for row in table.find_all('tr'):
-                    tds = row.find_all('td')
-                    if len(tds) >= 4:
-                        w_text = tds[0].get_text(strip=True)
-                        if w_text.isdigit():
-                            w = int(w_text)
-                            results["exhibitions"].append({
-                                "waku": w,
-                                "time": parse_float_safe(tds[2].text) if len(tds) >= 3 else 0.0,
-                                "lap": parse_float_safe(tds[-3].text) if len(tds) >= 6 else 0.0,
-                                "turn": parse_float_safe(tds[-2].text) if len(tds) >= 6 else 0.0,
-                                "straight": parse_float_safe(tds[-1].text) if len(tds) >= 6 else 0.0,
-                                "comment": comments_map.get(w)
-                            })
+            
+            if jcd == "15":
+                # 丸亀特有のパース: div#yoso03_03 内のテーブル (オリジナル展示)
+                exh_area = soup.select_one('div#yoso03_03')
+                table = exh_area.select_one('table.table01') if exh_area else None
+                if table:
+                    for tbody in table.select('tbody'):
+                        row = tbody.find('tr') # 各選手1行目
+                        if not row: continue
+                        tds = row.find_all('td')
+                        if len(tds) >= 8:
+                            w_text = tds[0].get_text(strip=True)
+                            if w_text.isdigit():
+                                w = int(w_text)
+                                results["exhibitions"].append({
+                                    "waku": w,
+                                    "time": parse_float_safe(tds[4].text), # 5列目 (展示タイム)
+                                    "lap": parse_float_safe(tds[5].text),  # 6列目 (一周タイム)
+                                    "turn": parse_float_safe(tds[6].text), # 7列目 (まわり足)
+                                    "straight": parse_float_safe(tds[7].text), # 8列目 (直線)
+                                    "comment": comments_map.get(w)
+                                })
+            else:
+                table = soup.select_one('table.table1') or soup.find('table')
+                if table:
+                    for row in table.find_all('tr'):
+                        tds = row.find_all('td')
+                        if len(tds) >= 4:
+                            w_text = tds[0].get_text(strip=True)
+                            if w_text.isdigit():
+                                w = int(w_text)
+                                results["exhibitions"].append({
+                                    "waku": w,
+                                    "time": parse_float_safe(tds[2].text) if len(tds) >= 3 else 0.0,
+                                    "lap": parse_float_safe(tds[-3].text) if len(tds) >= 6 else 0.0,
+                                    "turn": parse_float_safe(tds[-2].text) if len(tds) >= 6 else 0.0,
+                                    "straight": parse_float_safe(tds[-1].text) if len(tds) >= 6 else 0.0,
+                                    "comment": comments_map.get(w)
+                                })
     except: pass
     return results
 
