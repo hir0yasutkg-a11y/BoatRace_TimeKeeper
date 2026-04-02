@@ -71,7 +71,21 @@ export default function App() {
   const [sourceUrls, setSourceUrls] = useState<{list?: string, before?: string}>({});
   const [showPwaPrompt, setShowPwaPrompt] = useState(false);
 
-  const [date, setDate] = useState('20260401');
+  const getAvailableDates = () => {
+    const dates = [];
+    const now = new Date();
+    for (let i = 0; i < 4; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      dates.push({ value: `${yyyy}${mm}${dd}`, label: `${yyyy}/${mm}/${dd}` });
+    }
+    return dates;
+  };
+
+  const [date, setDate] = useState(getAvailableDates()[0].value);
   const [jcd, setJcd] = useState('22'); 
   const [rno, setRno] = useState('1'); 
 
@@ -190,10 +204,9 @@ export default function App() {
         </div>
         <div className="race-selector">
           <select value={date} onChange={e => setDate(e.target.value)}>
-            <option value="20260402">2026/04/02</option>
-            <option value="20260401">2026/04/01</option>
-            <option value="20260331">2026/03/31</option>
-            <option value="20260330">2026/03/30</option>
+            {getAvailableDates().map(d => (
+              <option key={d.value} value={d.value}>{d.label}</option>
+            ))}
           </select>
           <select value={jcd} onChange={e => setJcd(e.target.value)}>
             {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
