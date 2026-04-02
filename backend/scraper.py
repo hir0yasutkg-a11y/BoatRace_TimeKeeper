@@ -9,6 +9,38 @@ import re
 
 BASE_URL = "https://www.boatrace.jp/owpc/pc/race"
 
+# 全24場のシステム分類とベースURLの設定
+VENUES_CONFIG = {
+    # Group 1: Cyber系 (ASP)
+    "01": {"type": "cyber", "url": "https://www.kiryu-kyotei.com/sp/index.php"},
+    "03": {"type": "cyber", "url": "https://www.edogawa-kyotei.co.jp/asp/edogawa/sp/kyogi"},
+    "04": {"type": "cyber", "url": "https://www.heiwajima.gr.jp/asp/heiwajima/sp/kyogi"},
+    "05": {"type": "cyber", "url": "https://www.tamagawa.co.jp/asp/tamagawa/sp/kyogi"},
+    "06": {"type": "cyber", "url": "https://www.hamanako-kyotei.com/asp/hamanako/sp/kyogi"},
+    "14": {"type": "cyber", "url": "https://www.n14.jp/sp"}, # 鳴門
+    "15": {"type": "cyber", "url": "https://www.marugameboat.jp/asp/kyogi/15/pc"}, # 丸亀はPC版が取得しやすい
+    "18": {"type": "cyber", "url": "https://www.boatrace-tokuyama.jp/sp"},
+    "21": {"type": "cyber", "url": "https://www.boatrace-ashiya.com/sp"},
+
+    # Group 2: K-Data/Synergy系 (PHP)
+    "02": {"type": "kdata", "url": "https://www.boatrace-toda.jp/sp"},
+    "07": {"type": "kdata", "url": "https://www.boatrace-gamagori.jp/sp"},
+    "08": {"type": "kdata", "url": "https://www.boatrace-tokoname.jp/sp"},
+    "09": {"type": "kdata", "url": "https://www.boatrace-tsu.jp/sp"},
+    "10": {"type": "kdata", "url": "https://www.boatrace-mikuni.jp/sp"},
+    "11": {"type": "kdata", "url": "https://www.boatrace-biwako.jp/sp"},
+    "12": {"type": "kdata", "url": "https://www.boatrace-suminoe.jp/sp"},
+    "16": {"type": "kdata", "url": "https://www.kojimaboat.jp/sp"},
+    "17": {"type": "kdata", "url": "https://www.boatrace-miyajima.com/sp"},
+    "19": {"type": "kdata", "url": "https://www.shimonoseki.gr.jp/sp"},
+    "20": {"type": "kdata", "url": "https://www.wakamatsu-kyotei.com/sp"},
+    "23": {"type": "kdata", "url": "https://www.boatrace-karatsu.jp/sp"},
+    "24": {"type": "kdata", "url": "https://www.omuraboat.jp/sp"},
+
+    # Group 3: Custom/Modules系
+    "13": {"type": "module", "url": "https://www.boatrace-amagasaki.jp/modules/race"}
+}
+
 def fetch_html(url: str):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -30,11 +62,12 @@ def fetch_html(url: str):
 
 def parse_float_safe(text: str, default: float = 0.0) -> float:
     try:
+        if not text: return default
         # 数字とドット以外を除去
         m = re.search(r'(\d+\.\d+)', text)
         if m: return float(m.group(1))
         # fallback
-        num_text = "".join(filter(lambda x: x.isdigit() or x == '.', text))
+        num_text = "".join(filter(lambda x: x.isdigit() or x == '.', text.strip()))
         return float(num_text) if num_text else default
     except:
         return default
@@ -67,368 +100,169 @@ def fetch_today_schedule(hd: str):
 
     return venues
 
-def fetch_marugame_data(rno: int, hd: str):
+def fetch_cyber_data(jcd: str, rno: int, hd: str):
     """
-    丸亀競艇の独自サイトから展示・コメントを取得。
+    Cyber系システム(ASP)の会場からデータを取得
     """
-    headers = {"User-Agent": "Mozilla/5.0"}
-    base_url = "https://www.marugameboat.jp/asp/kyogi/15/pc"
-    results = {"exhibitions": []}
+    config = VENUES_CONFIG.get(jcd)
+    if not config: return {"exhibitions": []}
     
-    yoso_url = f"{base_url}/yoso05{rno:02}.htm"
-    try:
-        res = requests.get(yoso_url, headers=headers, timeout=5)
-        if res.status_code == 200:
-            res.encoding = res.apparent_encoding # 自動判別 (丸亀は通常 Shift_JIS)
-            soup = BeautifulSoup(res.text, 'lxml')
-            
-            # オリジナル展示データの抽出
-            # ヘッダー列に「一周」「まわり足」「直線」が含まれるテーブルを探す
-            target_table = None
-            for table in soup.find_all('table'):
-                header_text = table.get_text()
-                if "一周" in header_text and "まわり足" in header_text and "直線" in header_text:
-                    target_table = table
-                    break
-            
-            temp_exh = {}
-            if target_table:
-                for row in target_table.find_all('tr'):
-                    tds = row.find_all('td')
-                    if len(tds) >= 8:
-                        w_text = tds[0].get_text(strip=True)
-                        if w_text.isdigit():
-                            w = int(w_text)
-                            temp_exh[w] = {
-                                "waku": w,
-                                "time": parse_float_safe(tds[4].text),
-                                "lap": parse_float_safe(tds[5].text),
-                                "turn": parse_float_safe(tds[6].text),
-                                "straight": parse_float_safe(tds[7].text),
-                                "comment": None
-                            }
-            
-            # 選手コメントの抽出 (#yoso03_04 内のテーブルを優先)
-            comment_div = soup.find('div', id='yoso03_04')
-            target_comment_table = None
-            if comment_div:
-                target_comment_table = comment_div.find('table')
-            
-            if not target_comment_table:
-                # フォールバック: テキストベースで探す
-                for table in soup.find_all('table'):
-                    header_text = table.text
-                    if "コメント" in header_text and ("当日" in header_text or "前日" in header_text):
-                        target_comment_table = table
-                        break
-            
-            if target_comment_table:
-                for row in target_comment_table.find_all('tr'):
-                    tds = row.find_all('td')
-                    if len(tds) >= 3:
-                        # 枠番の特定
-                        w_text = tds[0].get_text(strip=True)
-                        w = None
-                        if w_text.isdigit():
-                            w = int(w_text)
-                        
-                        if not w:
-                            # 以前のロジック (badge_w1 等) も念のため
-                            w_badge = tds[0].find('span', class_=re.compile(r'badge_w\d'))
-                            if w_badge:
-                                m = re.search(r'badge_w(\d)', str(w_badge))
-                                if m: w = int(m.group(1))
-                        
-                        if w and w in temp_exh:
-                            # コメント抽出 (td.col3 にあるはずだが、tds[2] でアクセス)
-                            comment_td = tds[2]
-                            # 当日コメント (come01) を優先
-                            today_p = comment_td.find('p', class_='come01')
-                            if not today_p:
-                                # come01がなくても、最初のpタグを試す
-                                ps = comment_td.find_all('p')
-                                for p in ps:
-                                    if '前日' not in p.text:
-                                        today_p = p
-                                        break
-                                if not today_p and ps: today_p = ps[0]
-                            
-                            if today_p:
-                                # "当日" や "記者の目" などのラベルを除去
-                                text_content = []
-                                for node in today_p.children:
-                                    if node.name is None: # Text node
-                                        text_content.append(node.strip())
-                                    elif node.name != 'span': # 不明なタグの中身は取るがspan(ラベル)は除外
-                                        text_content.append(node.get_text(strip=True))
-                                
-                                comment = " ".join([t for t in text_content if t])
-                                if not comment: # 念のため全部取り
-                                    comment = today_p.get_text(separator=" ").replace("当日", "").replace("記者の目", "").strip()
-                                
-                                temp_exh[w]["comment"] = comment
-            
-            results["exhibitions"] = list(temp_exh.values())
-            if results["exhibitions"]:
-                print(f"[SCRAPER] Marugame details found (including comments) for {len(results['exhibitions'])} racers.")
-    except Exception as e:
-        print(f"[SCRAPER] Error fetching Marugame data: {e}")
-            
-    return results
-
-def fetch_common_sp_data(jcd: str, rno: int, hd: str):
-    """
-    芦屋(21)、徳山(18)など共通のSPサイトシステムを採用している会場から展示・コメントを取得。
-    """
-    venue_domain_map = {
-        "18": "https://www.boatrace-tokuyama.jp",
-        "21": "https://www.boatrace-ashiya.com"
-    }
-    
-    base_domain = venue_domain_map.get(jcd)
-    if not base_domain: 
-        return {"exhibitions": []}
-        
-    base_url = f"{base_domain}/sp/index.php"
+    base_url = config["url"]
     results = {"exhibitions": []}
     headers = {"User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"}
     
-    # 1. 選手コメントの取得
-    comment_url = f"{base_url}?page=raceinfo-racer_comment&rno={rno}"
+    # 選手コメント
+    if "index.php" in base_url or jcd in ["01", "14", "18", "21"]:
+        param = "yosou-syussou"
+        if jcd in ["18", "21"]: param = "raceinfo-racer_comment"
+        comment_url = f"{base_url}/index.php?page={param}&race={rno}"
+        if jcd in ["18", "21"]: comment_url = f"{base_url}/index.php?page={param}&rno={rno}"
+    elif jcd == "15": # 丸亀
+        comment_url = f"https://www.marugameboat.jp/asp/kyogi/15/pc/yoso05{rno:02}.htm"
+    else:
+        comment_url = f"{base_url}/06comment.asp?r={rno}"
+        
     comments_map = {}
     try:
         res = requests.get(comment_url, headers=headers, timeout=5)
         if res.status_code == 200:
-            res.encoding = res.apparent_encoding
+            res.encoding = "shift_jis" if jcd == "15" else res.apparent_encoding
             soup = BeautifulSoup(res.text, 'lxml')
-            # 共通システムでは #table1 または table.table1 を使用
-            table = soup.select_one('#table1') or soup.select_one('.table1')
+            table = soup.select_one('table.table1') or soup.find('table')
             if table:
-                for row in table.find_all('tr')[1:]: # ヘッダー飛ばし
+                for row in table.find_all('tr'):
                     tds = row.find_all('td')
                     if len(tds) >= 3:
                         w_text = tds[0].get_text(strip=True)
                         if w_text.isdigit():
-                            w = int(w_text)
-                            # 21:芦屋は3列目, 18:徳山も3列目(当日コメント)
-                            comments_map[w] = tds[2].get_text(strip=True)
-    except Exception as e:
-        print(f"[SCRAPER] Error fetching SP comments for JCD {jcd}: {e}")
+                            idx = 2 if len(tds) >= 3 else 1
+                            comments_map[int(w_text)] = tds[idx].get_text(strip=True)
+    except: pass
 
-    # 2. オリジナル展示データの取得
-    exh_param = "raceinfo-original_exhibition" if jcd == "18" else "raceinfo-exhibition"
-    exh_url = f"{base_url}?page={exh_param}&rno={rno}"
+    # 展示データ
+    if "index.php" in base_url or jcd in ["01", "14", "18", "21"]:
+        exh_param = "yosou-chokuzen"
+        if jcd == "18": exh_param = "raceinfo-original_exhibition"
+        elif jcd == "21": exh_param = "raceinfo-exhibition"
+        exh_url = f"{base_url}/index.php?page={exh_param}&race={rno}"
+        if jcd in ["18", "21"]: exh_url = f"{base_url}/index.php?page={exh_param}&rno={rno}"
+    elif jcd == "15":
+        exh_url = f"https://www.marugameboat.jp/asp/kyogi/15/pc/yoso05{rno:02}.htm"
+    else:
+        exh_url = f"{base_url}/06original.asp?r={rno}"
+
     try:
         res = requests.get(exh_url, headers=headers, timeout=5)
         if res.status_code == 200:
-            res.encoding = res.apparent_encoding
+            res.encoding = "shift_jis" if jcd == "15" else res.apparent_encoding
             soup = BeautifulSoup(res.text, 'lxml')
-            table = soup.select_one('#table1') or soup.select_one('.table1')
+            table = soup.select_one('table.table1') or soup.find('table')
             if table:
                 for row in table.find_all('tr'):
                     tds = row.find_all('td')
-                    if len(tds) >= 6:
+                    if len(tds) >= 4:
                         w_text = tds[0].get_text(strip=True)
                         if w_text.isdigit():
                             w = int(w_text)
                             results["exhibitions"].append({
                                 "waku": w,
-                                "time": parse_float_safe(tds[2].text),
-                                "straight": parse_float_safe(tds[3].text),
-                                "turn": parse_float_safe(tds[4].text),
-                                "lap": parse_float_safe(tds[5].text),
+                                "time": parse_float_safe(tds[2].text) if len(tds) >= 3 else 0.0,
+                                "lap": parse_float_safe(tds[-3].text) if len(tds) >= 6 else 0.0,
+                                "turn": parse_float_safe(tds[-2].text) if len(tds) >= 6 else 0.0,
+                                "straight": parse_float_safe(tds[-1].text) if len(tds) >= 6 else 0.0,
                                 "comment": comments_map.get(w)
                             })
-    except Exception as e:
-        print(f"[SCRAPER] Error fetching SP exhibition for JCD {jcd}: {e}")
-            
+    except: pass
     return results
 
-def fetch_ashiya_data(rno: int, hd: str):
-    return fetch_common_sp_data("21", rno, hd)
-
-def fetch_tokuyama_data(rno: int, hd: str):
-    return fetch_common_sp_data("18", rno, hd)
-
-def fetch_fukuoka_data(rno: int, hd: str):
-    """
-    福岡(22)のSPサイトから展示・コメントを取得。
-    """
-    base_url = "https://www.boatrace-fukuoka.com/sp/index.php"
+def fetch_kdata_data(jcd: str, rno: int, hd: str):
+    config = VENUES_CONFIG.get(jcd)
+    base_url = config["url"]
     results = {"exhibitions": []}
-    headers = {"User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"}
+    headers = {"User-Agent": "Mozilla/5.0"}
     
-    # 1. 選手コメント
-    comment_url = f"{base_url}?page=yosou-syussou&race={rno}"
     comments_map = {}
     try:
-        res = requests.get(comment_url, headers=headers, timeout=5)
+        url = f"{base_url}/index.php?page=kyogi-comment&rno={rno}"
+        res = requests.get(url, headers=headers, timeout=5)
         if res.status_code == 200:
-            res.encoding = res.apparent_encoding
+            soup = BeautifulSoup(res.text, 'lxml')
+            rows = soup.select('table.table1 tr')
+            for row in rows:
+                tds = row.find_all('td')
+                if len(tds) >= 2:
+                    w_text = tds[0].get_text(strip=True)
+                    if w_text.isdigit():
+                        comments_map[int(w_text)] = tds[-1].get_text(strip=True)
+    except: pass
+
+    try:
+        url = f"{base_url}/index.php?page=kyogi-original&rno={rno}"
+        res = requests.get(url, headers=headers, timeout=5)
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, 'lxml')
+            rows = soup.select('table.table1 tr')
+            for row in rows:
+                tds = row.find_all('td')
+                if len(tds) >= 5:
+                    w_index = 0
+                    if not tds[w_index].text.strip().isdigit(): continue
+                    w = int(tds[w_index].text.strip())
+                    results["exhibitions"].append({
+                        "waku": w,
+                        "time": parse_float_safe(tds[1].text),
+                        "lap": parse_float_safe(tds[2].text),
+                        "turn": parse_float_safe(tds[3].text),
+                        "straight": parse_float_safe(tds[4].text),
+                        "comment": comments_map.get(w)
+                    })
+    except: pass
+    return results
+
+def fetch_module_data(jcd: str, rno: int, hd: str):
+    return fetch_kdata_data(jcd, rno, hd)
+
+def fetch_fukuoka_data(rno: int, hd: str):
+    # 福岡(22)は独自
+    base_url = "https://www.boatrace-fukuoka.com/sp/index.php"
+    results = {"exhibitions": []}
+    headers = {"User-Agent": "Mozilla/5.0"}
+    
+    comments_map = {}
+    try:
+        res = requests.get(f"{base_url}?page=yosou-syussou&race={rno}", headers=headers, timeout=5)
+        if res.status_code == 200:
             soup = BeautifulSoup(res.text, 'lxml')
             box = soup.select_one('div.box.box-yosou-syussou-4')
             if box:
-                table = box.select_one('table')
-                if table:
-                    for row in table.find_all('tr')[1:]:
-                        tds = row.find_all('td')
-                        if len(tds) >= 4:
-                            w_text = tds[0].get_text(strip=True)
-                            if w_text.isdigit():
-                                comments_map[int(w_text)] = tds[3].get_text(strip=True)
-    except Exception as e:
-        print(f"[SCRAPER] Error fetching Fukuoka comments: {e}")
+                for row in box.select('table tr')[1:]:
+                    tds = row.find_all('td')
+                    if len(tds) >= 4:
+                        w = int(tds[0].get_text(strip=True))
+                        comments_map[w] = tds[3].get_text(strip=True)
+    except: pass
 
-    # 2. 展示データ
-    exh_url = f"{base_url}?page=yosou-cyokuzen&race={rno}"
     try:
-        res = requests.get(exh_url, headers=headers, timeout=5)
+        res = requests.get(f"{base_url}?page=yosou-cyokuzen&race={rno}", headers=headers, timeout=5)
         if res.status_code == 200:
-            res.encoding = res.apparent_encoding
             soup = BeautifulSoup(res.text, 'lxml')
             box = soup.select_one('div.box.box-chokuzen-1')
             if box:
-                table = box.select_one('table')
-                if table:
-                    for row in table.find_all('tr'):
-                        tds = row.find_all('td')
-                        if len(tds) >= 4:
-                            w_text = tds[0].get_text(strip=True)
-                            if w_text.isdigit():
-                                w = int(w_text)
-                                results["exhibitions"].append({
-                                    "waku": w,
-                                    "time": 0.0, # 公式から取る
-                                    "straight": parse_float_safe(tds[3].text),
-                                    "turn": parse_float_safe(tds[2].text),
-                                    "lap": parse_float_safe(tds[1].text),
-                                    "comment": comments_map.get(w)
-                                })
-    except Exception as e:
-        print(f"[SCRAPER] Error fetching Fukuoka exhibition: {e}")
-            
-    return results
-
-def fetch_naruto_data(rno: int, hd: str):
-    """
-    鳴門(14)のSPサイトから展示・コメントを取得。
-    """
-    base_url = "https://www.n14.jp/sp/index.php"
-    results = {"exhibitions": []}
-    headers = {"User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"}
-    
-    # 1. 選手コメント
-    comment_url = f"{base_url}?page=yosou-syussou&race={rno}"
-    comments_map = {}
-    try:
-        res = requests.get(comment_url, headers=headers, timeout=5)
-        if res.status_code == 200:
-            res.encoding = res.apparent_encoding
-            soup = BeautifulSoup(res.text, 'lxml')
-            # 鳴門の選手コメントは .box-yosou-syussou-3
-            box = soup.select_one('div.box.box-yosou-syussou-3')
-            if box:
-                table = box.select_one('table')
-                if table:
-                    for row in table.find_all('tr')[1:]:
-                        tds = row.find_all('td')
-                        if len(tds) >= 4:
-                            w_text = tds[0].get_text(strip=True)
-                            if w_text.isdigit():
-                                comments_map[int(w_text)] = tds[3].get_text(strip=True)
-    except Exception as e:
-        print(f"[SCRAPER] Error fetching Naruto comments: {e}")
-
-    # 2. 展示データ
-    exh_url = f"{base_url}?page=yosou-chokuzen&race={rno}"
-    try:
-        res = requests.get(exh_url, headers=headers, timeout=5)
-        if res.status_code == 200:
-            res.encoding = res.apparent_encoding
-            soup = BeautifulSoup(res.text, 'lxml')
-            # 鳴門のオリジナル展示データは .box-yosou-chokuzen-3
-            box = soup.select_one('div.box.box-yosou-chokuzen-3')
-            if box:
-                table = box.select_one('table')
-                if table:
-                    for row in table.find_all('tr'):
-                        tds = row.find_all('td')
-                        if len(tds) >= 4:
-                            w_text = tds[0].get_text(strip=True)
-                            if w_text.isdigit():
-                                w = int(w_text)
-                                results["exhibitions"].append({
-                                    "waku": w,
-                                    "time": 0.0, # 公式から取得
-                                    "straight": parse_float_safe(tds[3].text),
-                                    "turn": parse_float_safe(tds[2].text),
-                                    "lap": parse_float_safe(tds[1].text),
-                                    "comment": comments_map.get(w)
-                                })
-    except Exception as e:
-        print(f"[SCRAPER] Error fetching Naruto exhibition: {e}")
-            
-    return results
-
-def fetch_kiryu_data(rno: int, hd: str):
-    """
-    桐生(01)のSPサイトから展示・コメントを取得。
-    """
-    base_url = "https://www.kiryu-kyotei.com/sp/index.php"
-    results = {"exhibitions": []}
-    headers = {"User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"}
-    
-    # 1. 選手コメント
-    comment_url = f"{base_url}?page=yosou-syussou&race={rno}"
-    comments_map = {}
-    try:
-        res = requests.get(comment_url, headers=headers, timeout=5)
-        if res.status_code == 200:
-            res.encoding = res.apparent_encoding
-            soup = BeautifulSoup(res.text, 'lxml')
-            # 桐生の選手コメントは .box-yosou-syussou-2
-            box = soup.select_one('div.box.box-yosou-syussou-2')
-            if box:
-                table = box.select_one('table')
-                if table:
-                    for row in table.find_all('tr'):
-                        tds = row.find_all('td')
-                        if len(tds) >= 3:
-                            w_text = tds[0].get_text(strip=True)
-                            if w_text.isdigit():
-                                comments_map[int(w_text)] = tds[2].get_text(strip=True)
-    except Exception as e:
-        print(f"[SCRAPER] Error fetching Kiryu comments: {e}")
-
-    # 2. 展示データ
-    exh_url = f"{base_url}?page=yosou-chokuzen&race={rno}"
-    try:
-        res = requests.get(exh_url, headers=headers, timeout=5)
-        if res.status_code == 200:
-            res.encoding = res.apparent_encoding
-            soup = BeautifulSoup(res.text, 'lxml')
-            # 桐生のオリジナル展示データは .box-yosou-chokuzen-1
-            box = soup.select_one('div.box.box-yosou-chokuzen-1')
-            if box:
-                table = box.select_one('table')
-                if table:
-                    for row in table.find_all('tr'):
-                        tds = row.find_all('td')
-                        if len(tds) >= 6:
-                            w_text = tds[0].get_text(strip=True)
-                            if w_text.isdigit():
-                                w = int(w_text)
-                                results["exhibitions"].append({
-                                    "waku": w,
-                                    "time": parse_float_safe(tds[2].text),
-                                    "straight": parse_float_safe(tds[5].text),
-                                    "turn": parse_float_safe(tds[4].text),
-                                    "lap": parse_float_safe(tds[3].text),
-                                    "comment": comments_map.get(w)
-                                })
-    except Exception as e:
-        print(f"[SCRAPER] Error fetching Kiryu exhibition: {e}")
-            
+                for row in box.select('table tr'):
+                    tds = row.find_all('td')
+                    if len(tds) >= 4:
+                        w_text = tds[0].get_text(strip=True)
+                        if w_text.isdigit():
+                            w = int(w_text)
+                            results["exhibitions"].append({
+                                "waku": w,
+                                "time": 0.0,
+                                "lap": parse_float_safe(tds[1].text),
+                                "turn": parse_float_safe(tds[2].text),
+                                "straight": parse_float_safe(tds[3].text),
+                                "comment": comments_map.get(w)
+                            })
+    except: pass
     return results
 
 def scrape_and_store_race_info(hd: str, jcd: str, rno: int, db: Session):
@@ -443,30 +277,19 @@ def scrape_and_store_race_info(hd: str, jcd: str, rno: int, db: Session):
     exh_list = []
     direct_entries = []
 
-    if jcd == '15':
-        m_data = fetch_marugame_data(rno, hd)
-        if m_data["exhibitions"]:
-            exh_list = m_data["exhibitions"]
-    elif jcd == '18':
-        t_data = fetch_tokuyama_data(rno, hd)
-        if t_data["exhibitions"]:
-            exh_list = t_data["exhibitions"]
-    elif jcd == '21':
-        a_data = fetch_ashiya_data(rno, hd)
-        if a_data["exhibitions"]:
-            exh_list = a_data["exhibitions"]
-    elif jcd == '22':
+    # 会場別エンジン
+    if jcd == "22":
         f_data = fetch_fukuoka_data(rno, hd)
-        if f_data["exhibitions"]:
-            exh_list = f_data["exhibitions"]
-    elif jcd == '14':
-        n_data = fetch_naruto_data(rno, hd)
-        if n_data["exhibitions"]:
-            exh_list = n_data["exhibitions"]
-    elif jcd == '01':
-        k_data = fetch_kiryu_data(rno, hd)
-        if k_data["exhibitions"]:
-            exh_list = k_data["exhibitions"]
+        exh_list = f_data["exhibitions"]
+    else:
+        config = VENUES_CONFIG.get(jcd)
+        if config:
+            if config["type"] == "cyber":
+                exh_list = fetch_cyber_data(jcd, rno, hd)["exhibitions"]
+            elif config["type"] == "kdata":
+                exh_list = fetch_kdata_data(jcd, rno, hd)["exhibitions"]
+            elif config["type"] == "module":
+                exh_list = fetch_module_data(jcd, rno, hd)["exhibitions"]
 
     # 公式出走表
     url_entries = f"{BASE_URL}/racelist?rno={rno}&jcd={jcd}&hd={hd}"
@@ -477,47 +300,23 @@ def scrape_and_store_race_info(hd: str, jcd: str, rno: int, db: Session):
         for i, tbody in enumerate(btbodys):
             if i >= 6: break
             w = i + 1
-            name = "Unknown"
-            name_el = tbody.select_one('div.is-fs18 a')
-            if name_el:
-                name_text = name_el.get_text(separator=" ", strip=True)
-                name = name_text.replace('\u3000', ' ').strip()
-                name = re.sub(r'\s+', ' ', name)
-            
-            # 氏名取得
             name_el = tbody.select_one('div.is-fs18.is-fBold a')
-            name = "Unknown"
-            if name_el:
-                name = re.sub(r'\s+', '', name_el.text)
+            name = re.sub(r'\s+', '', name_el.text) if name_el else "Unknown"
             
-            # 数値データの抽出 (正規表現で対応)
-            # 全テキストを連結して、必要な数値を抜き出す
             text_block = tbody.get_text(separator="|")
             st_val = 0.15
             rate_val = 0.0
-            
-            # 平均STを探す (例: 0.15)
-            # F数/L数の後にくる 0.\d+ 形式を探す
             st_match = re.findall(r'0\.\d{2}', text_block)
-            if st_match:
-                # 通常、1つ目が平均ST
-                st_val = parse_float_safe(st_match[0])
-            
-            # 全国勝率を探す (例: 6.08)
-            # 勝率は通常 1.00〜9.99 程度
-            # レイアウト上、名前の後の大きな数字ブロックにある
+            if st_match: st_val = parse_float_safe(st_match[0])
             rate_match = re.findall(r'\d\.\d{2}', text_block)
-            if len(rate_match) >= 1:
-                # 既にSTとして使われたもの以外で、最初の 0.XX 以外の数値を探す
-                for r in rate_match:
-                    val = parse_float_safe(r)
-                    if val > 1.0: # 勝率はおよそ1.0以上
-                        rate_val = val
-                        break
-            
+            for r in rate_match:
+                val = parse_float_safe(r)
+                if val > 1.0:
+                    rate_val = val
+                    break
             direct_entries.append({"waku": w, "name": name, "rate": rate_val, "st": st_val})
 
-    # DB保存
+    # DB保存 (Entry)
     for item in direct_entries:
         entry_id = f"{race_id}_{item['waku']}"
         entry = db.query(Entry).filter(Entry.id == entry_id).first()
@@ -529,7 +328,8 @@ def scrape_and_store_race_info(hd: str, jcd: str, rno: int, db: Session):
             entry.name, entry.rate_global, entry.st_average = item['name'], item['rate'], item['st']
             if comment: entry.racer_comment = comment
 
-    if not exh_list:
+    # 公式展示タイム(フォールバック用)
+    if not any(x.get("time") for x in exh_list):
         before_url = f"{BASE_URL}/beforeinfo?rno={rno}&jcd={jcd}&hd={hd}"
         html_before = fetch_html(before_url)
         if html_before:
@@ -540,8 +340,11 @@ def scrape_and_store_race_info(hd: str, jcd: str, rno: int, db: Session):
                 w = i + 1
                 td_time = tbody.select_one('td.is-vk_center')
                 time_val = parse_float_safe(td_time.text) if td_time else 6.80
-                exh_list.append({"waku": w, "time": time_val})
+                found = next((x for x in exh_list if x["waku"] == w), None)
+                if found: found["time"] = time_val
+                else: exh_list.append({"waku": w, "time": time_val})
 
+    # DB保存 (Exhibition)
     if exh_list:
         valid_times = [x["time"] for x in exh_list if x.get("time", 0) > 0]
         sorted_times = sorted(list(set(valid_times))) if valid_times else []

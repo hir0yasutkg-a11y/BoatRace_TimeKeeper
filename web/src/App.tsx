@@ -190,9 +190,10 @@ export default function App() {
         </div>
         <div className="race-selector">
           <select value={date} onChange={e => setDate(e.target.value)}>
+            <option value="20260402">2026/04/02</option>
+            <option value="20260401">2026/04/01</option>
             <option value="20260331">2026/03/31</option>
             <option value="20260330">2026/03/30</option>
-            <option value="20260329">2026/03/29</option>
           </select>
           <select value={jcd} onChange={e => setJcd(e.target.value)}>
             {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
