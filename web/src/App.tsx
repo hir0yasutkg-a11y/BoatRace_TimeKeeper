@@ -308,24 +308,7 @@ export default function App() {
               })}
             </div>
             
-            <div className="comments-section mt-6">
-              <h3 className="section-title flex items-center gap-2 mb-4">
-                <span className="icon">💬</span> 選手コメント・調整情報
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {racers.map(r => (
-                  <div key={r.waku} className="comment-card bg-slate-50/50 p-3 rounded-xl border border-slate-100 flex gap-3">
-                    <div className={`w-badge w-${r.waku} flex-shrink-0`}>{r.waku}</div>
-                    <div className="flex-1">
-                      <div className="text-sm font-bold text-slate-500 mb-1">{r.name}</div>
-                      <div className="text-sm text-slate-700 leading-relaxed italic">
-                        {r.comment || <span className="opacity-40">コメントなし</span>}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* Moved comments-section from here to tip-box below */}
           </section>
         </div>
 
@@ -344,7 +327,6 @@ export default function App() {
                     <th>一周</th>
                     <th>まわり</th>
                     <th>直線</th>
-                    <th>コメント</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -360,7 +342,6 @@ export default function App() {
                       <td>{r.lap_time ? r.lap_time.toFixed(2) : '-'}</td>
                       <td>{r.turn_time ? r.turn_time.toFixed(2) : '-'}</td>
                       <td>{r.straight_time ? r.straight_time.toFixed(2) : '-'}</td>
-                      <td className="comment-cell">{r.comment || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -373,9 +354,29 @@ export default function App() {
                <TrendingUp size={20} />
                予想のヒント
              </div>
-             <p style={{ fontSize: '0.82rem', lineHeight: 1.5 }}>
-               丸亀競艇場など、個別対応会場では「まわり足」や「一周タイム」を反映中。コメントも参考に！
-             </p>
+              <p style={{ fontSize: '0.82rem', lineHeight: 1.5, marginBottom: '15px' }}>
+                丸亀競艇場など、個別対応会場では「まわり足」や「一周タイム」を反映中。以下の選手コメントも参考に！
+              </p>
+
+              {/* Migrated Comments List */}
+              <div className="grid grid-cols-1 gap-2">
+                {racers.map(r => (
+                  <div key={r.waku} className="comment-card bg-white p-2 rounded-lg border border-slate-200 flex gap-3 shadow-sm">
+                    <div className={`w-badge w-${r.waku} flex-shrink-0`} style={{ width: 32, height: 32, fontSize: '0.9rem' }}>{r.waku}</div>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-bold text-slate-600">{r.name}</span>
+                        {r.exhibition_time && (
+                          <span className="text-[10px] bg-slate-100 px-1.5 rounded text-slate-400">展示: {r.exhibition_time.toFixed(2)}</span>
+                        )}
+                      </div>
+                      <div className="text-[12px] text-slate-700 leading-snug italic">
+                        {r.comment || <span className="opacity-30">コメントなし</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
           </section>
         </div>
       </main>

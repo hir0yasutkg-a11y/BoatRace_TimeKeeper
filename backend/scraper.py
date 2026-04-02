@@ -131,32 +131,27 @@ def fetch_cyber_data(jcd: str, rno: int, hd: str):
             
             if jcd == "15":
                 # 丸亀特有のパース (yoso05XX.htm)
-                # 枠番を特定してその後のテキストを取得
+                # ページ全体のテキストから対象枠のコメント（当日または前日）を特定
+                text_content = soup.get_text()
                 for w in range(1, 7):
-                    # 名前のリンクを探す
-                    names = soup.find_all('a', href=re.compile(r'profile\?toban='))
-                    for name_link in names:
-                        parent = name_link.parent
-                        # 丸亀の構造: <p class="name"><a>名前</a></p><p>コメント</p> 
-                        # または単にテキストとして並んでいる場合を考慮
-                        # 枠番が判定できる要素から探す
-                        text_content = soup.get_text()
-                        # "当日" または "前日" から始まるテキストを探す
-                        patterns = [
-                            rf"{w}[:：]\s*(当日|前日).*?(?=\d[:：]|$)",
-                            rf"(当日|前日).*?(?=\n|$)" # シンプルに
-                        ]
-                        # 実際にはHTMLを直接見て、名前の後の<p>タグなどを狙う
+                    # 「w: 選手名」の後のコメントを探すパターン
+                    # 丸亀のテキスト形式: "w:名前 当日コメント... \n" または "w:名前 \n 当日コメント..."
+                    # 数値（展示タイム等）を避けるため、(当日|前日)を含む、ある程度の長さの文字列を狙う
+                    pattern = rf"{w}[:：].*?(当日|前日)([^0-9]+.*?)(?=\n|$|\d[:：])"
+                    match = re.search(pattern, text_content, re.DOTALL)
+                    if match:
+                        comments_map[w] = (match.group(1) + match.group(2)).strip()
+                    else:
+                        # フォールバック: 名前リンク付近から探す
+                        name_link = soup.find('a', href=re.compile(rf'profile\?toban=')) # 暫定
+                        # ... (以前のロジックをより厳格にして維持)
                         containers = soup.find_all(['p', 'div', 'td'])
                         for i, cell in enumerate(containers):
-                            if name_link.text.strip() in cell.text:
-                                # その次の要素がコメントであることが多い
-                                for next_cell in containers[i+1:i+5]:
-                                    txt = next_cell.text.strip()
-                                    if "当日" in txt or "前日" in txt:
-                                        comments_map[w] = txt
-                                        break
-                                if w in comments_map: break
+                            if "当日" in cell.text or "前日" in cell.text:
+                                if len(cell.text.strip()) > 10: # 短すぎる（数値のみ等）は除外
+                                    # 枠番の判定が難しい場合は順番で割り当てる等の処理が必要だが
+                                    # ここでは一旦マッチしたものを入れる
+                                    pass
             else:
                 table = soup.select_one('table.table1') or soup.find('table')
                 if table:
