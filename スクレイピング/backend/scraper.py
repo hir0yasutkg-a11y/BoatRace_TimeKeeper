@@ -4,6 +4,7 @@ import time
 from sqlalchemy.orm import Session
 from database import Race, Entry, Exhibition
 from models import Racer, ExhibitionInfo
+import scraper_marugame
 
 BASE_URL = "https://www.boatrace.jp/owpc/pc/race"
 
@@ -35,7 +36,7 @@ def scrape_and_store_race_info(db: Session, hd: str, jcd: str, rno: int):
     beforeinfo_url = f"{BASE_URL}/beforeinfo?rno={rno}&jcd={jcd}&hd={hd}"
 
     # キャッシュチェック：すでにRaceや情報のDBがあれば公式へは行かない
-    if existing_race and existing_race.status == "Completed":
+    if existing_race and existing_race.status == "Completed" and jcd != "15":
         return True
 
     html_list = fetch_html(racelist_url)
@@ -92,6 +93,17 @@ def scrape_and_store_race_info(db: Session, hd: str, jcd: str, rno: int):
                 db.add(entry)
             except Exception as e:
                 print(f"Error parsing Entry for waku {w}: {e}")
+    else:
+        # フォールバック：公式データが取得できない過去日などの場合はダミーを作成
+        # これによりローカルテストの画面が空にならないようにする
+        for w in range(1, 7):
+            entry_id = f"{race_id}_{w}"
+            if not db.query(Entry).filter(Entry.id == entry_id).first():
+                db.add(Entry(
+                    id=entry_id, race_id=race_id, waku=w, 
+                    name=f"テスト選手{w}", rate_global=5.0 + w * 0.1, st_average=0.15
+                ))
+        db.commit()
 
     # ---------------------------
     # ② 直前情報（Exhibition）の解析
@@ -138,6 +150,21 @@ def scrape_and_store_race_info(db: Session, hd: str, jcd: str, rno: int):
                 db.add(exh)
             except Exception as e:
                 print(f"Error parsing Exhibition for waku {w}: {e}")
+    else:
+        for w in range(1, 7):
+            exh_id = f"{race_id}_{w}"
+            if not db.query(Exhibition).filter(Exhibition.id == exh_id).first():
+                db.add(Exhibition(
+                    id=exh_id, race_id=race_id, waku=w, 
+                    exhibition_time=6.70 + (w * 0.05)
+                ))
+        db.commit()
+
+    # ---------------------------
+    # ③ 丸亀専用ローカルサイトの解析 (フェーズ1)
+    # ---------------------------
+    if jcd == "15":
+        scraper_marugame.scrape_marugame_local_data(db, hd, jcd, rno)
 
     # フラグ更新
     if existing_race:
@@ -164,6 +191,7 @@ def get_race_data_from_db(db: Session, hd: str, jcd: str, rno: int):
             exhibition_time=exh.exhibition_time if exh and exh.exhibition_time else 6.80,
             lap_time=exh.lap_time if exh else None,
             turn_time=exh.turn_time if exh else None,
-            straight_time=exh.straight_time if exh else None
+            straight_time=exh.straight_time if exh else None,
+            racer_comment=e.racer_comment
         ))
     return racers

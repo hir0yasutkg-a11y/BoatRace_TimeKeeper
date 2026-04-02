@@ -19,6 +19,7 @@ class Entry(Base):
     name = Column(String)
     rate_global = Column(Float)
     st_average = Column(Float)
+    racer_comment = Column(String, nullable=True)
 
 class Exhibition(Base):
     __tablename__ = "exhibitions"

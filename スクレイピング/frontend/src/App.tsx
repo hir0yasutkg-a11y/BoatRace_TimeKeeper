@@ -10,6 +10,7 @@ interface Racer {
   lap_time?: number;
   turn_time?: number;
   straight_time?: number;
+  racer_comment?: string;
   // --- New Mock Data for Start Simulator ---
   st_series_avg?: number;     // 節間平均ST
   st_series_rank?: number;    // 節間平均スタート順
@@ -252,17 +253,20 @@ function App() {
         {/* --- RIGHT COLUMN --- */}
         <section className="right-panel">
           
-          <div className="glass-card table-card table-wrapper mb-30">
-            <h2>出走表＆直前情報</h2>
-            <table>
+          <div className="glass-card table-card table-wrapper mb-30" style={{ overflowX: 'auto' }}>
+            <h2>出走表＆直前情報 (オリジナル展示対応)</h2>
+            <table style={{ minWidth: '700px' }}>
               <thead>
                 <tr>
-                  <th>枠</th>
-                  <th>選手名</th>
-                  <th>勝率</th>
-                  <th>平均ST</th>
-                  <th className="highlight-column">展示<br/>タイム</th>
-                  <th>周回<br/>タイム</th>
+                  <th style={{ width: '40px' }}>枠</th>
+                  <th style={{ width: '100px' }}>選手名</th>
+                  <th style={{ width: '50px' }}>勝率</th>
+                  <th style={{ width: '60px' }}>平均ST</th>
+                  <th className="highlight-column" style={{ width: '60px' }}>展示<br/>ﾀｲﾑ</th>
+                  <th style={{ width: '60px' }}>1周<br/>ﾀｲﾑ</th>
+                  <th style={{ width: '60px' }}>まわり<br/>足</th>
+                  <th style={{ width: '60px' }}>直線<br/>ﾀｲﾑ</th>
+                  <th style={{ textAlign: 'left', paddingLeft: '15px' }}>選手コメント (前日/直前)</th>
                 </tr>
               </thead>
               <tbody>
@@ -273,7 +277,12 @@ function App() {
                     <td>{r.rate_global.toFixed(2)}</td>
                     <td>{r.st_average.toFixed(2)}</td>
                     <td className="highlight-val">{r.exhibition_time.toFixed(2)}</td>
-                    <td>{r.lap_time ? r.lap_time.toFixed(1) : '-'}</td>
+                    <td style={{ fontWeight: 'bold', color: r.lap_time ? '#ffeb3b' : 'inherit' }}>{r.lap_time ? r.lap_time.toFixed(2) : '-'}</td>
+                    <td style={{ fontWeight: 'bold', color: r.turn_time ? '#ffeb3b' : 'inherit' }}>{r.turn_time ? r.turn_time.toFixed(2) : '-'}</td>
+                    <td style={{ fontWeight: 'bold', color: r.straight_time ? '#ffeb3b' : 'inherit' }}>{r.straight_time ? r.straight_time.toFixed(2) : '-'}</td>
+                    <td style={{ textAlign: 'left', fontSize: '0.85rem', lineHeight: '1.4', padding: '5px 15px' }}>
+                      {r.racer_comment ? r.racer_comment : <span style={{color:'#666'}}>-</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>

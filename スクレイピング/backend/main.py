@@ -3,8 +3,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from database import SessionLocal, engine, Base
 import scraper
+import sqlite3
 
 Base.metadata.create_all(bind=engine)
+
+# Auto-migrate table for racer_comment
+try:
+    with sqlite3.connect("./boatrace_data.db") as conn:
+        conn.execute("ALTER TABLE entries ADD COLUMN racer_comment VARCHAR")
+except Exception:
+    pass
 
 app = FastAPI(title="BoatRace Prediction API")
 
@@ -79,3 +87,32 @@ def get_prediction(hd: str, jcd: str, rno: int, db: Session = Depends(get_db)):
         "racers": racers,
         "predictions": predictions
     }
+
+import requests
+from bs4 import BeautifulSoup
+import re
+
+@app.get("/api/research_marugame")
+def research_marugame(hd: str = "20260330", jcd: str = "15", rno: int = 12):
+    import requests
+    from bs4 import BeautifulSoup
+    
+    url = f"https://sp.macour.jp/s/race/comment/jcd/{jcd}/hd/{hd}/rno/{rno}/"
+    url2 = f"https://kyoteibiyori.com/race_shussou.php?place_no={jcd}&race_no={rno}&date={hd[:4]}-{hd[4:6]}-{hd[6:]}"
+    
+    results = {}
+    try:
+        res = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+        res.encoding = "utf-8"
+        results["macour"] = res.text[:2000]
+    except Exception as e:
+        results["macour_err"] = str(e)
+        
+    try:
+        res = requests.get(url2, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+        res.encoding = "utf-8"
+        results["biyori"] = res.text[:2000]
+    except Exception as e:
+        results["biyori_err"] = str(e)
+            
+    return results

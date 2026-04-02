@@ -11,6 +11,7 @@ class Racer(BaseModel):
     lap_time: Optional[float] = None
     turn_time: Optional[float] = None
     straight_time: Optional[float] = None
+    racer_comment: Optional[str] = None
 
 class ExhibitionInfo(BaseModel):
     waku: int
