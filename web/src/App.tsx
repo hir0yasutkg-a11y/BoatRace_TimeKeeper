@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { 
   Trophy, 
-  Search, 
   Flag, 
   Timer, 
   TrendingUp, 
@@ -148,6 +147,41 @@ export default function App() {
 
   return (
     <div className="app-container">
+      {loading && (
+        <div className="loading-overlay">
+          <motion.div 
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            className="loading-spinner"
+          />
+          <p>データを取得中...</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="error-banner">
+          <Flag size={20} />
+          {error}
+          <button onClick={() => fetchData()}>再試行</button>
+        </div>
+      )}
+
+      {isMock && (
+        <div className="mock-badge">
+          ⚠️ 注意: 現在はデモ用データ（3/31分）を表示しています
+        </div>
+      )}
+
+      {showPwaPrompt && (
+        <div className="pwa-prompt">
+          <div className="pwa-content">
+            <Share size={20} />
+            <span>ホーム画面に追加してアプリとして利用できます（共有 &gt; ホーム画面に追加）</span>
+            <button onClick={() => setShowPwaPrompt(false)}>閉じる</button>
+          </div>
+        </div>
+      )}
+
       <div className="schedule-bar">
         <div className="bar-label"><Clock size={14} /> 本日の開催</div>
         <div className="venue-list">
