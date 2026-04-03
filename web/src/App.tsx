@@ -223,10 +223,10 @@ export default function App() {
 
       {sourceUrls.list && (
         <div className="source-links-bar">
-          <MapPin size={14} style={{ marginRight: 6 }} />
-          <span>取得元URL: </span>
+          <MapPin size={14} />
+          <span className="label">取得元URL: </span>
           <a href={sourceUrls.list} target="_blank" rel="noreferrer">出走表</a>
-          <span style={{margin: '0 8px'}}>|</span>
+          <span className="sep">|</span>
           <a href={sourceUrls.before} target="_blank" rel="noreferrer">直前情報</a>
         </div>
       )}
@@ -234,8 +234,8 @@ export default function App() {
       <main className="dashboard-grid">
         <div className="left-panel">
           <section className="glass-card">
-            <h2 style={{ display: 'flex', alignItems: 'center' }}>
-              <Timer size={24} style={{ marginRight: 10 }} />
+            <h2>
+              <Timer size={24} />
               スタート体形シミュレーター
             </h2>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginBottom: '15px', fontWeight: 'bold' }}>
@@ -247,18 +247,18 @@ export default function App() {
                 const diff = r.exhibition_time - minExh;
                 const lag = (diff / 0.01) * 8;
                 return (
-                  <div key={r.waku} className="sim-lane" style={{ position: 'relative' }}>
-                    <div className={`w-badge w-${r.waku}`} style={{ marginLeft: '10px', zIndex: 11 }}>{r.waku}</div>
-                    <div className="lane-track" style={{ position: 'relative', flex: 1, height: '100%' }}>
+                  <div key={r.waku} className="sim-lane">
+                    <div className={`w-badge w-${r.waku}`}>{r.waku}</div>
+                    <div className="lane-track">
                       <motion.div 
                         className="lane-boat-wrapper"
-                        initial={{ x: -100 }}
-                        animate={{ x: -lag }}
+                        initial={{ x: -150 }}
+                        animate={{ x: lag }} // lag moves it back from the RIGHT side
                         transition={{ duration: 1.2, ease: "easeOut" }}
-                        style={{ position: 'absolute', right: '220px' }}
+                        style={{ right: '80px' }} // 80px from start line
                       >
                         <BoatIcon waku={r.waku} />
-                        <span className="diff-tag" style={{ marginLeft: '10px', fontWeight: 900, fontSize: '0.8rem', color: diff === 0 ? 'var(--primary-red)' : 'var(--text-sub)' }}>
+                        <span className="diff-tag" style={{ color: diff === 0 ? 'var(--primary-red)' : 'inherit' }}>
                           {diff === 0 ? "Fastest!" : `+${diff.toFixed(2)}s`}
                         </span>
                       </motion.div>
