@@ -12,6 +12,8 @@ class Race(Base):
     rno = Column(Integer)
     status = Column(String)
     scheduled_start = Column(String, nullable=True) # e.g. "15:18"
+    series_name = Column(String, nullable=True)     # 司令塔として、 1 文字の漏れもなく開催名を捕捉
+    series_day = Column(String, nullable=True)      # 節当（初日、〇日目、最終日）を 1 mm の狂いもなく捕捉
 
 class Entry(Base):
     __tablename__ = "entries"

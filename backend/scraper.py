@@ -572,45 +572,65 @@ class MarugameHandler(BaseVenueHandler):
         except: return None
 
     def fetch_direct_data(self, rno: int, hd: str):
+        # 司令塔として、まずは公式サイトから 1 狂いもない基礎展示データを奪還
+        direct_data = super().fetch_direct_data(rno, hd)
+        
         html = self._fetch_html("yoso05", rno)
-        if not html: return {"exhibitions": []}
+        if not html: return direct_data
+        
         soup = BeautifulSoup(html, 'lxml')
-        exh_dict = {}
-        slide3 = soup.find('div', id='yoso03_03')
-        if slide3:
-            for tbody in slide3.find_all('tbody'):
+        # 丸亀独自の展示タイム（ラップ、まわり、直線）を 100% 確実にマッピング
+        # NOTE: クラスやIDが変動しやすいため、より広範囲に探索
+        target_container = soup.find('div', id=re.compile(r'yoso03_03|slide_exhibition'))
+        if not target_container:
+            # IDによる特定に失敗した場合、テーブルのヘッダーテキストから特定を試みる
+            target_container = soup.find(lambda t: t.name == 'div' and '展示タイム' in t.get_text())
+
+        if target_container:
+            for tbody in target_container.find_all('tbody'):
                 tr = tbody.find('tr')
                 if tr:
                     try:
                         tds = tr.find_all('td')
-                        if tds:
+                        if len(tds) >= 8:
                             waku = int(tds[0].get_text(strip=True))
-                            if len(tds) >= 8:
-                                exh_dict[waku] = {
-                                    "waku": waku, "time": float(tds[4].get_text(strip=True)) if tds[4].get_text(strip=True) != "-" else None,
-                                    "lap": float(tds[5].get_text(strip=True)) if tds[5].get_text(strip=True) != "-" else None,
-                                    "turn": float(tds[6].get_text(strip=True)) if tds[6].get_text(strip=True) != "-" else None,
-                                    "straight": float(tds[7].get_text(strip=True)) if tds[7].get_text(strip=True) != "-" else None
-                                }
-                    except: continue
-        return {"exhibitions": list(exh_dict.values())}
+                            def p(txt): return float(txt) if txt and txt != "-" else None
+                            
+                            # 既存のリストから対象の枠を見つけてデータを 1 狂いもなく融合
+                            for exh in direct_data.get("exhibitions", []):
+                                if exh["waku"] == waku:
+                                    exh["lap"] = p(tds[5].get_text(strip=True))
+                                    exh["turn"] = p(tds[6].get_text(strip=True))
+                                    exh["straight"] = p(tds[7].get_text(strip=True))
+                                    # 公式サイトより丸亀サイトの方が精度が高い場合があるため上書きも検討（現状は維持）
+                                    if not exh["time"]: exh["time"] = p(tds[4].get_text(strip=True))
+                                    break
+                    except Exception as e:
+                        print(f"[SCRAPER] Marugame Parse Error (Entry): {e}")
+                        continue
+        return direct_data
 
     def fetch_machine_assessment(self, rno: int, hd: str):
         html = self._fetch_html("yoso05", rno)
         if not html: return {}
+        
         soup = BeautifulSoup(html, 'lxml')
         assessment = {}
-        slide4 = soup.find('div', id='yoso03_04')
-        if slide4:
-            for tbody in slide4.find_all('tbody'):
+        # 記者コメントや選手コメントのコンテナを特定
+        target_container = soup.find('div', id=re.compile(r'yoso03_04|slide_comment'))
+        if not target_container:
+             target_container = soup.find(lambda t: t.name == 'div' and '選手コメント' in t.get_text())
+
+        if target_container:
+            for tbody in target_container.find_all('tbody'):
                 tr = tbody.find('tr')
                 if tr:
                     try:
                         tds = tr.find_all('td')
                         if len(tds) >= 3:
                             waku = int(tds[0].get_text(strip=True))
-                            comment_p = tds[2].find_all('p')
-                            full_comment = " ".join([p.get_text(strip=True) for p in comment_p])
+                            comment_p = tds[2].find_all(['p', 'div', 'span'])
+                            full_comment = " ".join([p.get_text(strip=True) for p in comment_p if p.get_text(strip=True)])
                             if full_comment: assessment[waku] = full_comment
                     except: continue
         return assessment
@@ -918,12 +938,25 @@ def fetch_today_schedule(hd: str):
         is_c = any(kw in s_td_txt for kw in ["中止", "順延", "不成立"])
         is_f = "終了" in s_td_txt or "最終" in s_td_txt
         
+        # 4. シリーズ名と日次を 1 mm の不備もなく 100% 確実に奪還
+        s_title = row.select_one('td.is-title').get_text(strip=True) if row.select_one('td.is-title') else ""
+        s_date_td = row.select_one('td.is-date')
+        s_day = ""
+        if s_date_td:
+            # 「3/21-3/27<br>４日目」のような構造。 1 mm の狂いもなく「日目」や「最終日」「初日」を捕捉。
+            s_day_txt = s_date_td.get_text(strip=True, separator=' ')
+            m_day = re.search(r'(\d+日目|初日|最終日|準優勝戦|優勝戦)', s_day_txt)
+            if m_day:
+                s_day = m_day.group(1)
+
         venues.append({
             "jcd": jcd, 
             "name": name, 
             "status": "Cancelled" if is_c else ("終了" if is_f else "開催中"), 
             "next_race": n_rno, 
-            "deadline": dline
+            "deadline": dline,
+            "series_name": s_title,
+            "series_day": s_day
         })
     return venues
 
@@ -1001,6 +1034,12 @@ def run_background_scraping_cycle(db: Session):
             # 司令塔として、会場単位での支配を 1 mm の狂いもなく 100% 確実に確立
             db_races = db.query(Race).filter(Race.hd == hd, Race.jcd == jcd).all()
             
+            # シリーズ名・節当の 1 文字の漏れもない同期を 100% 確実に執行
+            for r in db_races:
+                if r.series_name != v['series_name'] or r.series_day != v['series_day']:
+                    r.series_name = v['series_name']
+                    r.series_day = v['series_day']
+            
             # モーニング・スイープ: 1 mm の不備もなく 司令部（DB）に全 12 レースを 100% 確実に展開
             if len(db_races) < 12 or any(r.scheduled_start is None for r in db_races):
                 print(f"[SCRAPER] Initializing timetable for JCD:{jcd}")
@@ -1010,10 +1049,17 @@ def run_background_scraping_cycle(db: Session):
                         rid = f"{hd}_{jcd}_{rno}"
                         race = db.query(Race).filter(Race.id == rid).first()
                         if not race:
-                            race = Race(id=rid, hd=hd, jcd=jcd, rno=rno, status="Scheduled", scheduled_start=s_start)
+                            race = Race(
+                                id=rid, hd=hd, jcd=jcd, rno=rno, status="Scheduled", 
+                                scheduled_start=s_start,
+                                series_name=v['series_name'],
+                                series_day=v['series_day']
+                            )
                             db.add(race)
                         else:
                             race.scheduled_start = s_start
+                            race.series_name = v['series_name']
+                            race.series_day = v['series_day']
                     db.commit() # 中間完勝（コミット）
                     db_races = db.query(Race).filter(Race.hd == hd, Race.jcd == jcd).all()
 
