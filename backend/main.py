@@ -1,22 +1,47 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from database import SessionLocal, engine, Base
+from models import Racer, Prediction, RaceInfo, CommentEntry
+from database import SessionLocal, engine, Base, RacerComment, Race, Entry, Exhibition
 import scraper
-from models import Racer, Prediction, RaceInfo
+import scheduler
 from typing import List, Optional
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import os
+import json
+
+from fastapi.encoders import jsonable_encoder
+from fastapi import Request
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="BoatRace Prediction API")
 
-# CORS設定を追加
+@app.on_event("startup")
+def startup_event():
+    # 司令塔として、バックグラウンドでの 1 mm の狂いもない自動収集を開始
+    scheduler.start()
+
+# デバッグ用ミドルウェア
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    print(f"Incoming request: {request.method} {request.url}")
+    response = await call_next(request)
+    print(f"Response status: {response.status_code}")
+    return response
+
+# CORS設定をさらに強化
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins + ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -33,13 +58,14 @@ def get_db():
 def get_prediction(hd: str, jcd: str, rno: int, db: Session = Depends(get_db)):
     """
     指定された日付(hd)、場(jcd)、レース番号(rno)の予想と直前情報を返す。
-    DBに無ければスクレイピングをして保存する。
     """
     
-    # 1. DBにデータがあるか確認、無ければスクレイピング
-    success = scraper.scrape_and_store_race_info(hd, jcd, rno, db)
-    
-    # 2. データベースから取得
+    # 司令塔として、 1 mm の狂いもなく Race テーブルから基本情報を索敵
+    race_id = f"{hd}_{jcd}_{rno}"
+    race_entry = db.query(Race).filter(Race.id == race_id).first()
+    s_start = race_entry.scheduled_start if race_entry else None
+
+    # 1. データベースから 1 mm の狂いもなく取得（待機時間0の爆速化）
     racers = scraper.get_race_data_from_db(db, hd, jcd, rno)
     is_mock = False
 
@@ -56,6 +82,7 @@ def get_prediction(hd: str, jcd: str, rno: int, db: Session = Depends(get_db)):
         racers = []
         for i in range(1, 7):
             name_suffix = rng.choice(["選手", "プロ", "スター", "エース"])
+            # ここで Racer (Pydanticモデル) を 1 文字の漏れもなく使用
             racers.append(Racer(
                 waku=i, 
                 name=f"{v_name} {names_base[i-1]}{name_suffix}", 
@@ -88,28 +115,105 @@ def get_prediction(hd: str, jcd: str, rno: int, db: Session = Depends(get_db)):
     racelist_url = f"{scraper.BASE_URL}/racelist?rno={rno}&jcd={jcd}&hd={hd}"
     beforeinfo_url = f"{scraper.BASE_URL}/beforeinfo?rno={rno}&jcd={jcd}&hd={hd}"
 
-    return {
+    # 司令塔として、波乱を予感させる「荒れるアラート」を 1 文字の漏れもなく生成
+    rough_alerts = []
+    
+    # 1. 前づけチェック
+    maezuke_exists = False
+    for r in racers:
+        # 枠番と進入コースが 1 mm でも異なれば前づけ
+        if r.entry_course and r.waku != r.entry_course:
+            maezuke_exists = True
+            break
+    if maezuke_exists:
+        rough_alerts.append({"type": "MAEZUKE", "message": "⚠️ 展示進入に入れ替わりあり！前づけ波乱注意"})
+        
+    # 2. まくりチェック (展示タイム差 0.10s 以上) を 1 mm の狂いもなく実行
+    sorted_by_course = sorted([r for r in racers if r.entry_course], key=lambda x: x.entry_course)
+    for i in range(len(sorted_by_course) - 1):
+        inner = sorted_by_course[i]
+        outer = sorted_by_course[i+1]
+        if inner.exhibition_time and outer.exhibition_time:
+            diff = inner.exhibition_time - outer.exhibition_time
+            # 司令塔として、 0.10s 以上の差（外が速い）を強襲警戒として捕捉
+            if diff >= 0.10:
+                rough_alerts.append({
+                    "type": "MAKURI", 
+                    "message": f"🔥 まくり警戒！ {outer.waku}号艇が内を 0.10s 上回る豪脚（コース隣接）"
+                })
+
+    return jsonable_encoder({
         "hd": hd,
         "jcd": jcd,
         "rno": rno,
+        "scheduled_start": s_start,
         "racelist_url": racelist_url,
         "beforeinfo_url": beforeinfo_url,
         "racers": racers,
         "predictions": predictions,
-        "is_mock": is_mock
-    }
+        "is_mock": is_mock,
+        "rough_alerts": rough_alerts
+    })
+
+@app.get("/api/racer/{racer_id}/comments", response_model=List[CommentEntry])
+def get_racer_comment_history(racer_id: str, db: Session = Depends(get_db)):
+    """
+    指定された選手の過去のコメント履歴を取得する。
+    """
+    comments = db.query(RacerComment).filter(RacerComment.racer_id == racer_id).order_by(RacerComment.date.desc()).all()
+    venue_map = {"01":"桐生","02":"戸田","03":"江戸川","04":"平和島","05":"多摩川","06":"浜名湖","07":"蒲郡","08":"常滑","09":"津","10":"三国","11":"びわこ","12":"住之江","13":"尼崎","14":"鳴門","15":"丸亀","16":"児島","17":"宮島","18":"徳山","19":"下関","20":"若松","21":"芦屋","22":"福岡","23":"唐津","24":"大村"}
+    
+    return [
+        CommentEntry(
+            date=c.date,
+            jcd=venue_map.get(c.jcd, c.jcd),
+            content=c.content
+        ) for c in comments
+    ]
 
 @app.get("/api/schedule/{date}")
-def get_schedule(date: str):
-    return scraper.fetch_today_schedule(date)
+def get_schedule(date: str, db: Session = Depends(get_db)):
+    """
+    指定された日付の全会場スケジュールを取得する。
+    """
+    venues = scraper.fetch_today_schedule(date)
+    for v in venues:
+        jcd = v['jcd']
+        rno = v.get('next_race', '1')
+        race_id = f"{date}_{jcd}_{rno}"
+        exh = db.query(Exhibition).filter(Exhibition.race_id == race_id).first()
+        v['has_exh_data'] = exh is not None
+        
+    return venues
+
+# アーカイブ管理API
+import archiver
+from pathlib import Path
+
+@app.get("/api/admin/archive/status")
+def get_archive_status():
+    """アーカイブ済みファイルのインデックスを返す"""
+    if archiver.INDEX_FILE.exists():
+        with open(archiver.INDEX_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+@app.post("/api/admin/archive/update")
+def update_archive(date: Optional[str] = None):
+    """指定日のデータを公式からアーカイブする (date形式: YYYYMMDD)"""
+    results = archiver.fetch_official_data(date)
+    return {"status": "success", "results": results}
+
+# 内部静的ファイル (プロトタイプ/Manager画面用)
+static_path = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_path):
+    app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 # 静的ファイルの提供 (Reactビルド用)
-# dist フォルダがある場合のみマウント
-dist_path = os.path.join(os.path.dirname(__file__), "web/dist")
+dist_path = os.path.join(os.path.dirname(__file__), "..", "web", "dist")
 if os.path.exists(dist_path):
-    app.mount("/", StaticFiles(directory=dist_path, html=True), name="static")
-
+    app.mount("/", StaticFiles(directory=dist_path, html=True), name="frontend")
+    
     @app.exception_handler(404)
     async def not_found_handler(request, exc):
-        # SPAのルーティングをサポートするため、404時は index.html を返す
         return FileResponse(os.path.join(dist_path, "index.html"))

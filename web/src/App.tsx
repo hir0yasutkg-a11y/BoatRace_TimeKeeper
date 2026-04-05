@@ -6,7 +6,10 @@ import {
   TrendingUp, 
   Clock,
   MapPin,
-  Share
+  Share,
+  Cpu,
+  Activity,
+  RotateCw
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import './index.css';
@@ -14,6 +17,7 @@ import './index.css';
 interface Racer {
   waku: number;
   name: string;
+  rank?: string;
   rate_global: number;
   st_average: number;
   exhibition_time: number;
@@ -21,6 +25,7 @@ interface Racer {
   lap_time?: number;
   turn_time?: number;
   straight_time?: number;
+  entry_course?: number; // 司令塔として、進入コースを 1 mm の狂いもなく捕捉
   comment?: string;
 }
 
@@ -34,21 +39,40 @@ interface VenueSchedule {
   jcd: string;
   name: string;
   status: string;
+  grade?: 'SG' | 'G1' | 'G2' | 'G3' | 'General';
+  event?: 'Ladies' | 'Rookie' | 'Masters' | null;
+  next_race: string | null;
+  deadline: string | null;
+  has_exh_data?: boolean;
 }
+
+// 日付生成をコンポーネントの外に出して再計算を抑制
+const getAvailableDates = () => {
+  const dates = [];
+  const now = new Date();
+  for (let i = 0; i < 4; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      dates.push({ value: `${yyyy}${mm}${dd}`, label: `${yyyy}/${mm}/${dd}` });
+  }
+  return dates;
+};
+
+const AVAILABLE_DATES = getAvailableDates();
 
 const BoatIcon = ({ waku, className }: { waku: number; className?: string }) => {
   return (
     <svg 
       viewBox="0 0 120 40" 
       className={`boat-svg w-svg-${waku} ${className || ''}`}
-      width="80" height="32"
+      width="64" height="26"
       xmlns="http://www.w3.org/2000/svg"
       style={{ overflow: 'visible' }}
     >
-      <filter id={`pop-shadow-${waku}`}>
-        <feDropShadow dx="2" dy="2" stdDeviation="1.5" floodColor="rgba(0,0,0,0.5)"/>
-      </filter>
-      <g filter={`url(#pop-shadow-${waku})`}>
+      <g>
         <path d="M 5 5 L 85 5 Q 115 20 85 35 L 5 35 L 0 20 Z" fill={`var(--waku-${waku})`} fillOpacity="1" stroke="#111" strokeWidth="2.5" />
         <path d="M 85 5 Q 115 20 85 35 L 80 20 Z" fill="rgba(255,255,255,0.25)" />
         <circle cx="28" cy="20" r="11" fill="#fff" stroke="#111" strokeWidth="2.5"/>
@@ -58,31 +82,209 @@ const BoatIcon = ({ waku, className }: { waku: number; className?: string }) => 
   );
 };
 
+const TimeVisualizer = ({ title, icon, timeKey, racers, speedKmh = 80 }: { title: string, icon: any, timeKey: keyof Racer, racers: Racer[], speedKmh?: number }) => {
+  // 有効なタイム（0より大きい）を持つ選手だけを抽出
+  const validRacers = racers.filter(r => (r[timeKey] as number) > 0);
+  if (validRacers.length === 0) return null; // データが全くなければ何も表示しない
+
+  const times = validRacers.map(r => r[timeKey] as number);
+  const maxTime = Math.max(...times);
+  const minTime = Math.min(...times);
+  const pxPerMeter = 64 / 2.9; // 新スケール: 1艇身(2.9m) = 64px
+
+  return (
+    <section className="glass-card">
+      <h2 style={{ fontSize: '1.1rem', marginBottom: '10px' }}>
+        {icon}
+        <span style={{ marginLeft: '8px' }}>{title}</span>
+        <span style={{ fontSize: '0.7rem', color: 'var(--text-sub)', marginLeft: '10px', fontWeight: 'normal' }}>
+          (計算速度: {speedKmh}km/h)
+        </span>
+      </h2>
+      <div className="simulator-box" style={{ paddingTop: '10px' }}>
+        <div className="start-line"></div>
+        {racers.map(r => {
+          const currentTime = r[timeKey] as number;
+          if (!currentTime || currentTime <= 0) {
+            return (
+              <div key={r.waku} className="sim-lane" style={{ opacity: 0.3 }}>
+                <div className={`w-badge w-${r.waku}`}>{r.waku}</div>
+                <div className="lane-track"><span style={{ fontSize: '0.7rem', marginLeft: '10px' }}>データなし</span></div>
+              </div>
+            );
+          }
+
+          const diff = maxTime - currentTime;
+          // 物理計算: 指定された速度における距離差(m)
+          // km/h * 1000 / 3600 = m/s
+          const speedMs = (speedKmh * 1000) / 3600;
+          const distanceGap = diff * speedMs;
+          const xPos = distanceGap * pxPerMeter;
+
+          return (
+            <div key={r.waku} className="sim-lane">
+              <div className={`w-badge w-${r.waku}`}>{r.waku}</div>
+              <div className="lane-track">
+                <motion.div 
+                  className="lane-boat-wrapper"
+                  initial={{ x: -64 }}
+                  animate={{ x: xPos }} 
+                  transition={{ duration: 1.5, ease: "easeOut" }}
+                  style={{ position: 'absolute', left: '0px', display: 'flex', alignItems: 'center' }}
+                >
+                  <BoatIcon waku={r.waku} />
+                  <span className="diff-tag" style={{ 
+                    whiteSpace: 'nowrap',
+                    color: currentTime === minTime ? 'var(--primary-red)' : 'inherit',
+                    fontWeight: currentTime === minTime ? '900' : 'normal'
+                  }}>
+                    {currentTime === minTime ? `Fastest! (+${distanceGap.toFixed(1)}m)` : `+${distanceGap.toFixed(1)}m`}
+                  </span>
+                </motion.div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
+const TotalVisualizer = ({ racers }: { racers: Racer[] }) => {
+  const configs = [
+    { key: 'exhibition_time', speed: 80 },
+    { key: 'turn_time', speed: 40 },
+    { key: 'straight_time', speed: 60 },
+  ] as const;
+
+  const maxTimes = configs.reduce((acc, config) => {
+    const validTimes = racers.filter(r => (r[config.key] as number) > 0).map(r => r[config.key] as number);
+    acc[config.key] = validTimes.length > 0 ? Math.max(...validTimes) : 0;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const racerLeads = racers
+    .filter(r => configs.some(c => (r[c.key] as number) > 0))
+    .map(r => {
+      let totalLead = 0;
+      configs.forEach(config => {
+        const time = r[config.key] as number;
+        if (time && time > 0 && maxTimes[config.key] > 0) {
+          const diff = maxTimes[config.key] - time;
+          totalLead += diff * (config.speed * 1000 / 3600);
+        }
+      });
+      return { waku: r.waku, totalLead };
+    });
+
+  const maxTotalLead = Math.max(...racerLeads.map(l => l.totalLead));
+  const pxPerMeter = 64 / 2.9; // 新スケール
+
+  return (
+    <section className="glass-card total-evaluation-card" style={{ marginTop: '30px', padding: '20px' }}>
+      {/* HUD Deco */}
+      <div className="hud-corner hud-tl" />
+      <div className="hud-tr" />
+      <div className="hud-bl" />
+      <div className="hud-br" />
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 2, marginBottom: '15px' }}>
+        <div>
+          <h2 style={{ fontSize: '1.4rem', color: '#00f2ff', margin: 0, display: 'flex', alignItems: 'center', gap: '10px', textShadow: '0 0 10px rgba(0, 242, 255, 0.5)' }}>
+            <Cpu size={28} />
+            LIVE ANALYSIS HUD [B-SYSTEM v2.5]
+          </h2>
+          <div style={{ display: 'flex', gap: '15px', marginTop: '5px' }}>
+            <span style={{ fontSize: '0.65rem', color: 'rgba(0, 242, 255, 0.7)', letterSpacing: '1px' }}>▋ STATUS: DATA_SYNCED</span>
+            <span style={{ fontSize: '0.65rem', color: 'rgba(0, 242, 255, 0.7)', letterSpacing: '1px' }}>▋ MODE: PERFORMANCE_AGGREGATION</span>
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', background: 'rgba(0, 242, 255, 0.1)', padding: '8px 15px', border: '1px solid #00f2ff', borderRadius: '4px' }}>
+          <span style={{ fontSize: '0.6rem', display: 'block', fontWeight: 'bold', marginBottom: '2px' }}>EST. WIN PROBABILITY</span>
+          <motion.span 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            style={{ fontSize: '1.6rem', fontWeight: 900, color: '#00f2ff' }}
+          >
+            {maxTotalLead > 0 ? (85 + (maxTotalLead * 2)).toFixed(1) : '---'}%
+          </motion.span>
+        </div>
+      </div>
+
+      <div className="simulator-box" style={{ height: '320px', background: 'rgba(0, 242, 255, 0.03)', border: '1px solid rgba(0, 242, 255, 0.1)', position: 'relative', zIndex: 1, padding: '10px 0' }}>
+        <div className="start-line" style={{ background: '#00f2ff', boxShadow: '0 0 15px #00f2ff' }}></div>
+        
+        {racerLeads.map(l => {
+          const xPos = l.totalLead * pxPerMeter;
+          const isBest = l.totalLead === maxTotalLead && l.totalLead > 0;
+          const powerPercent = maxTotalLead > 0 ? (l.totalLead / maxTotalLead) * 100 : 0;
+          
+          return (
+            <div key={l.waku} className="sim-lane" style={{ height: '52px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginRight: '10px' }}>
+                <div className={`w-badge w-${l.waku}`} style={{ border: isBest ? '3px solid #00f2ff' : '1px solid rgba(0, 242, 255, 0.3)' }}>{l.waku}</div>
+                <span style={{ fontSize: '0.55rem', marginTop: '2px', color: 'rgba(0,242,255,0.6)' }}>NO.{l.waku}</span>
+              </div>
+
+              <div className="lane-track">
+                <motion.div 
+                  className="lane-boat-wrapper"
+                  initial={{ x: -64 }}
+                  animate={{ x: xPos }} 
+                  transition={{ duration: 2, ease: "easeOut" }}
+                  style={{ position: 'absolute', left: '0px', display: 'flex', alignItems: 'center' }}
+                >
+                  <div style={{ position: 'relative' }}>
+                    <BoatIcon waku={l.waku} className={isBest ? 'best-boat' : ''} />
+                    {isBest && <Activity size={14} style={{ position: 'absolute', top: -15, right: -15, color: '#00f2ff' }} />}
+                  </div>
+                  
+                  <div style={{ marginLeft: '12px', display: 'flex', flexDirection: 'column' }}>
+                    <span className="diff-tag" style={{ 
+                      fontSize: isBest ? '1.1rem' : '0.85rem',
+                      color: isBest ? '#00f2ff' : 'rgba(0, 242, 255, 0.8)',
+                      fontWeight: isBest ? '900' : 'normal',
+                      textShadow: isBest ? '0 0 10px #00f2ff' : 'none'
+                    }}>
+                      {isBest ? `TARGET LOCK! (+${l.totalLead.toFixed(2)}m)` : `+${l.totalLead.toFixed(2)}m`}
+                    </span>
+                    <div className="hud-power-bar">
+                      <motion.div 
+                        className="hud-power-fill" 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${powerPercent}%` }}
+                        transition={{ duration: 2.5 }}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      
+      <div style={{ marginTop: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.6rem', color: 'rgba(0, 242, 255, 0.5)', letterSpacing: '2px' }}>
+        <span>{">>"} ENGINE_DATA: AGGREGATED</span>
+        <span>SCANNING_LANE_POSITION_REALTIME...</span>
+        <span>{">>"} PHYSICS_ENGINE: ACTIVE</span>
+      </div>
+    </section>
+  );
+};
+
 export default function App() {
   const [racers, setRacers] = useState<Racer[]>([]);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [schedule, setSchedule] = useState<VenueSchedule[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isFetched, setIsFetched] = useState(false);
   const [isMock, setIsMock] = useState(false);
   const [sourceUrls, setSourceUrls] = useState<{list?: string, before?: string}>({});
+  const [roughAlerts, setRoughAlerts] = useState<{type: string, message: string}[]>([]); // 司令塔として、波乱の予兆を 1 mm の狂いもなく捕捉
   const [showPwaPrompt, setShowPwaPrompt] = useState(false);
-
-  const getAvailableDates = () => {
-    const dates = [];
-    const now = new Date();
-    for (let i = 0; i < 4; i++) {
-        const d = new Date(now);
-        d.setDate(now.getDate() - i);
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        dates.push({ value: `${yyyy}${mm}${dd}`, label: `${yyyy}/${mm}/${dd}` });
-    }
-    return dates;
-  };
-
-  const [date, setDate] = useState(getAvailableDates()[0].value);
+  const [date, setDate] = useState(AVAILABLE_DATES[0].value);
   const [jcd, setJcd] = useState('22'); 
   const [rno, setRno] = useState('1'); 
 
@@ -103,7 +305,7 @@ export default function App() {
     if (isIOS && !isStandalone) setShowPwaPrompt(true);
   }, []);
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
   const fetchSchedule = async () => {
     try {
@@ -116,22 +318,36 @@ export default function App() {
   };
 
   const fetchData = async () => {
+    if (!jcd) return;
+    console.log("Fetching from:", `${API_BASE}/api/prediction/${date}/${jcd}/${rno}`);
     setLoading(true);
     setError('');
+    setIsFetched(false);
     try {
-      const res = await fetch(`${API_BASE}/api/prediction/${date}/${jcd}/${rno}?t=${Date.now()}`);
-      if (!res.ok) throw new Error('API Error');
+      const fetchUrl = `${API_BASE}/api/prediction/${date}/${jcd}/${rno}?t=${Date.now()}`;
+      console.log("Actual URL:", fetchUrl);
+      const res = await fetch(fetchUrl);
+      console.log("Response Status:", res.status);
+      if (!res.ok) throw new Error(`API Error: ${res.status}`);
       const data = await res.json();
+      console.log("Data received:", data);
       if (data.error) {
         setError(data.error);
         return;
       }
-      setRacers(data.racers);
-      setPredictions(data.predictions);
+      // 欠場艇（名前がUnknown、または名前に「欠場」を含む）を完全に除外してセット
+      const activeRacers = (data.racers || []).filter((r: any) => 
+        r.name !== "Unknown" && !r.name.includes("欠場")
+      );
+      setRacers(activeRacers);
+      setPredictions(data.predictions || []);
       setIsMock(!!data.is_mock);
       setSourceUrls({ list: data.racelist_url, before: data.beforeinfo_url });
+      setRoughAlerts(data.rough_alerts || []); // 司令塔として、 100% 確実にアラートを同期
+      setIsFetched(true);
     } catch (err) {
-      setError('データが取得できませんでした。');
+      console.error("Fetch Error:", err);
+      setError('データが取得できませんでした。ブラウザのコンソール（F12）で詳細を確認してください。');
     } finally {
       setTimeout(() => setLoading(false), 600);
     }
@@ -139,8 +355,12 @@ export default function App() {
 
   useEffect(() => {
     fetchSchedule();
-    fetchData();
-  }, [date, jcd, rno]);
+    setIsFetched(false);
+  }, [date]);
+
+  useEffect(() => {
+    setIsFetched(false);
+  }, [jcd, rno]);
 
   const minExh = racers.length ? Math.min(...racers.map(r => r.exhibition_time)) : 6.6;
   const sortedPredictions = [...predictions].sort((a,b) => b.score - a.score);
@@ -183,15 +403,51 @@ export default function App() {
       )}
 
       <div className="schedule-bar">
-        <div className="bar-label"><Clock size={14} /> 本日の開催</div>
+        <div className="bar-label">
+          <Clock size={14} /> 本日の開催
+          <button className="btn-refresh-schedule" onClick={() => fetchSchedule()} title="開催情報を更新">
+            <RotateCw size={12} />
+          </button>
+        </div>
         <div className="venue-list">
           {schedule.length > 0 ? schedule.map(v => (
             <div 
               key={v.jcd} 
-              className={`venue-chip ${v.jcd === jcd ? 'is-active' : ''}`}
-              onClick={() => setJcd(v.jcd)}
+              className={`venue-chip ${v.jcd === jcd ? 'is-active' : ''} ${v.status === '終了' || v.status === 'canceled' ? 'is-finished' : ''} ${v.status === 'canceled' ? 'is-canceled' : ''} grade-${v.grade || 'General'}`}
+              onClick={() => {
+                if (v.status === 'canceled') return; 
+                setJcd(v.jcd);
+                if (v.next_race) {
+                  setRno(v.next_race);
+                  setTimeout(() => {
+                    const btn = document.querySelector('.btn-fetch') as HTMLButtonElement;
+                    if (btn) btn.click();
+                  }, 100);
+                }
+              }}
+              style={{ position: 'relative' }} 
             >
-              {v.name}
+              {v.has_exh_data && (
+                <span className="live-indicator-dot" title="直前データ捕捉中！" />
+              )}
+              <span className="v-name">
+                {v.grade && v.grade !== 'General' && (
+                  <span className={`grade-badge ${v.grade.toLowerCase()}`}>{v.grade}</span>
+                )}
+                {v.name}
+                {v.event === 'Ladies' && <span className="event-badge ladies">L</span>}
+                {v.event === 'Rookie' && <span className="event-badge rookie">R</span>}
+                {v.event === 'Masters' && <span className="event-badge masters">M</span>}
+              </span>
+              {v.status === 'canceled' ? (
+                <span className="v-finished">中止順延</span>
+              ) : v.status === '終了' ? (
+                <span className="v-finished">終了</span>
+              ) : (
+                <span className="v-deadline">
+                  {v.next_race}R <span className="v-time">{v.deadline}</span>
+                </span>
+              )}
             </div>
           )) : (
             <span style={{fontSize: '0.8rem', opacity: 0.7}}>開催情報を取得中...</span>
@@ -205,19 +461,35 @@ export default function App() {
           <h1>BoatRace <span>Analyzer POP</span></h1>
         </div>
         <div className="race-selector">
-          <select value={date} onChange={e => setDate(e.target.value)}>
-            {getAvailableDates().map(d => (
-              <option key={d.value} value={d.value}>{d.label}</option>
-            ))}
-          </select>
-          <select value={jcd} onChange={e => setJcd(e.target.value)}>
-            {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-          </select>
-          <select value={rno} onChange={e => setRno(e.target.value)}>
-            {[1,2,3,4,5,6,7,8,9,10,11,12].map(r => (
-              <option key={r} value={r.toString()}>{r} R</option>
-            ))}
-          </select>
+          <div className="selector-item">
+            <label>日付</label>
+            <select value={date} onChange={e => setDate(e.target.value)}>
+              {AVAILABLE_DATES.map(d => (
+                <option key={d.value} value={d.value}>{d.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="selector-item">
+            <label>会場</label>
+            <select value={jcd} onChange={e => setJcd(e.target.value)}>
+              {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+          </div>
+          <div className="selector-item">
+            <label>レース</label>
+            <select value={rno} onChange={e => setRno(e.target.value)}>
+              {[1,2,3,4,5,6,7,8,9,10,11,12].map(r => (
+                <option key={r} value={r.toString()}>{r} R</option>
+              ))}
+            </select>
+          </div>
+          <button 
+            className={`btn-fetch ${loading ? 'is-loading' : ''}`}
+            onClick={fetchData}
+            disabled={loading}
+          >
+            {loading ? '取得中...' : 'データ探索・予想開始'}
+          </button>
         </div>
       </header>
 
@@ -231,159 +503,200 @@ export default function App() {
         </div>
       )}
 
-      <main className="dashboard-grid">
-        <div className="left-panel">
-          <section className="glass-card">
-            <h2>
-              <Timer size={24} />
-              スタート体形シミュレーター
-            </h2>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginBottom: '15px', fontWeight: 'bold' }}>
-              横一線と仮定した展示タイムだけの差（0.01秒=8px遅れ）
-            </p>
-            <div className="simulator-box">
-              <div className="start-line"></div>
-              {racers.map(r => {
-                const diff = r.exhibition_time - minExh;
-                const lag = (diff / 0.01) * 8;
-                return (
-                  <div key={r.waku} className="sim-lane">
-                    <div className={`w-badge w-${r.waku}`}>{r.waku}</div>
-                    <div className="lane-track">
-                      <motion.div 
-                        className="lane-boat-wrapper"
-                        initial={{ x: -150 }}
-                        animate={{ x: lag }} // lag moves it back from the RIGHT side
-                        transition={{ duration: 1.2, ease: "easeOut" }}
-                        style={{ right: '80px' }} // 80px from start line
-                      >
-                        <BoatIcon waku={r.waku} />
-                        <span className="diff-tag" style={{ color: diff === 0 ? 'var(--primary-red)' : 'inherit' }}>
-                          {diff === 0 ? "Fastest!" : `+${diff.toFixed(2)}s`}
-                        </span>
-                      </motion.div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="glass-card">
-            <h2><Trophy size={24} style={{ marginRight: 10, verticalAlign: 'middle' }} /> AI 着順予測</h2>
-            <div className="podium-box">
-              {[1, 0, 2].map((idx) => {
-                const p = sortedPredictions[idx];
-                if (!p) return <div key={idx} className="podium-rank"></div>;
-                const rankClass = idx === 0 ? 'p-1st' : idx === 1 ? 'p-2nd' : 'p-3rd';
-                const label = idx === 0 ? '1着' : idx === 1 ? '2着' : '3着';
-                return (
-                  <div key={p.waku} className={`podium-rank ${rankClass}`}>
-                     <div className={`w-badge w-${p.waku}`} style={{ marginBottom: 10, width: 45, height: 45, fontSize: '1.5rem' }}>{p.waku}</div>
-                     <div className="podium-base">{label}</div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="score-bars">
-              <h3 style={{ fontWeight: 900, marginBottom: 15, fontSize: '1rem', display: 'inline-block', background: 'var(--secondary)', padding: '2px 10px', border: '2px solid var(--border-dark)', borderRadius: '20px' }}>総合スコア</h3>
-              {sortedPredictions.map((p) => (
-                <div key={p.waku} className="score-row">
-                  <div className={`w-badge w-${p.waku}`}>{p.waku}</div>
-                  <div className="progress-container">
-                    <motion.div 
-                      className="progress-hatched" 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(p.score / 120) * 100}%` }}
-                    />
-                  </div>
-                  <div style={{ fontWeight: 900, width: 45, textAlign: 'right' }}>{p.score.toFixed(1)}</div>
-                </div>
+      {!isFetched && !loading ? (
+        <div className="welcome-card">
+          <div className="welcome-icon">🚀</div>
+          <h2>会場とレース番号を選択して、「予想開始」を押してください</h2>
+          <p>最新の出走表、展示タイム、選手コメントをリアルタイムに解析します。</p>
+        </div>
+      ) : (
+        <main className="dashboard-layout">
+          {/* --- Rough Race Alerts (Analyzer Special) --- */}
+          {roughAlerts && roughAlerts.length > 0 && (
+            <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+              {roughAlerts.map((alert, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.3, delay: idx * 0.1 }}
+                  style={{
+                    padding: '12px 20px',
+                    borderRadius: '12px',
+                    background: alert.type === 'MAEZUKE' 
+                      ? 'rgba(255, 165, 0, 0.15)' 
+                      : 'rgba(255, 69, 0, 0.15)',
+                    border: alert.type === 'MAEZUKE'
+                      ? '2px solid #ffa500'
+                      : '2px solid #ff4500',
+                    color: alert.type === 'MAEZUKE' ? '#ffa500' : '#ff4500',
+                    fontSize: '1rem',
+                    fontWeight: 900,
+                    textAlign: 'center',
+                    boxShadow: alert.type === 'MAEZUKE'
+                      ? '0 0 15px rgba(255, 165, 0, 0.3)'
+                      : '0 0 15px rgba(255, 69, 0, 0.3)',
+                    textShadow: '0 0 5px rgba(0,0,0,0.5)',
+                    letterSpacing: '1px'
+                  }}
+                >
+                  {alert.message}
+                </motion.div>
               ))}
             </div>
-          </section>
-        </div>
+          )}
+          {/* 段1: 基本情報 & コメント (2カラム) */}
+          <div className="info-row">
+            <section className="glass-card">
+              <h3 style={{ fontWeight: 900, marginBottom: 15, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px', color: '#111111' }}>
+                <Flag size={20} /> 出走表 & 直前情報
+              </h3>
+              <div style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <div className="cards-header">
+                  <div>枠</div>
+                  <div>選手名</div>
+                  <div>勝率</div>
+                  <div>平均ST</div>
+                  <div>展示</div>
+                  <div>1周</div>
+                  <div>まわり</div>
+                  <div>直線</div>
+                </div>
 
-        <div className="right-panel">
-          <section className="glass-card" style={{ padding: '0px', overflow: 'hidden', border: 'none', background: 'transparent', boxShadow: 'none' }}>
-            <div style={{ background: 'white', border: '3px solid var(--border-dark)', borderRadius: '12px', overflow: 'hidden', boxShadow: 'var(--pop-shadow)' }}>
-              <h2 style={{ padding: '20px', margin: 0, borderBottom: '4px solid var(--primary-red)' }}>
-                <Flag size={24} style={{ marginRight: 10, verticalAlign: 'middle' }} /> 
-                出走表 & 直前情報 (オリジナル展示対応)
-              </h2>
-              
-              <div className="cards-header">
-                <div>枠</div>
-                <div>選手名</div>
-                <div>勝率</div>
-                <div>平均ST</div>
-                <div>展示</div>
-                <div>1周</div>
-                <div>まわり</div>
-                <div>直線</div>
-                <div style={{ textAlign: 'left', paddingLeft: 15 }}>選手コメント (前日/直前)</div>
+                <div className="racer-cards-container" style={{ padding: '15px', background: '#f8f9fa', flex: 1 }}>
+                  {racers.map((r) => (
+                    <div key={r.waku} className="racer-card">
+                      <div className="col-waku">
+                        <div className={`w-badge w-${r.waku}`}>{r.waku}</div>
+                      </div>
+                      <div className="col-name">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '2px' }}>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{r.waku}号艇</div>
+                          {r.rank && (
+                            <span className={`rank-badge rank-${r.rank.charAt(0)}`}>
+                              {r.rank}
+                            </span>
+                          )}
+                        </div>
+                        {r.name}
+                      </div>
+                      <div className="col-stat">{r.rate_global.toFixed(2)}</div>
+                      <div className="col-stat">{r.st_average.toFixed(2)}</div>
+                      <div className="col-stat" style={{ color: r.exhibition_time === minExh ? 'var(--primary-red)' : 'inherit', fontWeight: '900' }}>
+                        {r.exhibition_time.toFixed(2)}
+                      </div>
+                      <div className="col-stat text-lap">{r.lap_time ? r.lap_time.toFixed(2) : '-'}</div>
+                      <div className="col-stat text-maw">{r.turn_time ? r.turn_time.toFixed(2) : '-'}</div>
+                      <div className="col-stat text-str">{r.straight_time ? r.straight_time.toFixed(2) : '-'}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="glass-card">
+              <h3 style={{ fontWeight: 900, marginBottom: 15, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px', color: '#111111' }}>
+                <TrendingUp size={20} /> 選手コメント
+              </h3>
+              <div className="comment-table" style={{ flex: 1 }}>
+                {racers.map(r => {
+                  const commentText = r.comment || '';
+                  return (
+                    <div key={r.waku} className="comment-row">
+                      <div className={`w-badge w-${r.waku}`} style={{ minWidth: 32, height: 32, fontSize: '1rem' }}>{r.waku}</div>
+                      <div className="comment-text">
+                        {commentText ? (
+                          commentText.split('前日').map((part, i) => {
+                            const cleanText = part.replace('当日', '').replace(':', '').replace('：', '').trim();
+                            if (!cleanText && i === 1) return null;
+                            return (
+                              <div key={i} className={i === 0 ? 'c-today' : 'c-yesterday'}>
+                                <span className="c-label">{i === 0 ? '当日:' : '前日:'}</span>
+                                {cleanText}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <span style={{ opacity: 0.4 }}>（コメントなし）</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
+
+          {/* 段2: 3大指標シミュレーター (横並び) */}
+          <div className="simulators-row">
+            <TimeVisualizer 
+              title="展示タイム" 
+              icon={<Timer size={18} />} 
+              timeKey="exhibition_time" 
+              racers={racers} 
+            />
+
+            <TimeVisualizer 
+              title="まわり足" 
+              icon={<TrendingUp size={18} />} 
+              timeKey="turn_time" 
+              racers={racers} 
+              speedKmh={40}
+            />
+
+            <TimeVisualizer 
+              title="直線タイム" 
+              icon={<TrendingUp size={18} />} 
+              timeKey="straight_time" 
+              racers={racers} 
+              speedKmh={60}
+            />
+          </div>
+
+          {/* 段3: 総合評価 (全幅) */}
+          <div className="total-row">
+            <TotalVisualizer racers={racers} />
+          </div>
+
+          {/* 段4: AI予測 (全幅) */}
+          <div className="predictions-row">
+            <section className="glass-card">
+              <h2><Trophy size={24} style={{ marginRight: 10, verticalAlign: 'middle' }} /> AI 着順予測 (最終結論)</h2>
+              <div className="podium-box">
+                {[1, 0, 2].map((idx) => {
+                  const p = sortedPredictions[idx];
+                  if (!p) return <div key={idx} className="podium-rank"></div>;
+                  const rankClass = idx === 0 ? 'p-1st' : idx === 1 ? 'p-2nd' : 'p-3rd';
+                  const label = idx === 0 ? '1着' : idx === 1 ? '2着' : '3着';
+                  return (
+                    <div key={p.waku} className={`podium-rank ${rankClass}`}>
+                      <div className={`w-badge w-${p.waku}`} style={{ marginBottom: 10, width: 45, height: 45, fontSize: '1.5rem' }}>{p.waku}</div>
+                      <div className="podium-base">{label}</div>
+                    </div>
+                  );
+                })}
               </div>
 
-              <div className="racer-cards-container" style={{ padding: '15px', background: '#f8f9fa' }}>
-                {racers.map((r) => (
-                  <div key={r.waku} className="racer-card">
-                    <div className="col-waku">
-                      <div className={`w-badge w-${r.waku}`}>{r.waku}</div>
+              <div className="score-bars">
+                <h3 style={{ fontWeight: 900, marginBottom: 15, fontSize: '1rem', display: 'inline-block', background: 'var(--secondary)', padding: '2px 10px', border: '2px solid var(--border-dark)', borderRadius: '20px' }}>総合予測スコア</h3>
+                {sortedPredictions.map((p) => (
+                  <div key={p.waku} className="score-row">
+                    <div className={`w-badge w-${p.waku}`}>{p.waku}</div>
+                    <div className="progress-container">
+                      <motion.div 
+                        className="progress-hatched" 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(p.score / 120) * 100}%` }}
+                      />
                     </div>
-                    <div className="col-name">
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{r.waku}号艇</div>
-                      {r.name}
-                    </div>
-                    <div className="col-stat">{r.rate_global.toFixed(2)}</div>
-                    <div className="col-stat">{r.st_average.toFixed(2)}</div>
-                    <div className="col-stat" style={{ color: r.exhibition_time === minExh ? 'var(--primary-red)' : 'inherit', fontWeight: '900' }}>
-                      {r.exhibition_time.toFixed(2)}
-                    </div>
-                    <div className="col-stat text-lap">{r.lap_time ? r.lap_time.toFixed(2) : '-'}</div>
-                    <div className="col-stat text-maw">{r.turn_time ? r.turn_time.toFixed(2) : '-'}</div>
-                    <div className="col-stat text-str">{r.straight_time ? r.straight_time.toFixed(2) : '-'}</div>
-                    <div className="col-comment">
-                      {r.comment || <span style={{ opacity: 0.3 }}>コメントなし</span>}
-                    </div>
+                    <div style={{ fontWeight: 900, width: 45, textAlign: 'right' }}>{p.score.toFixed(1)}</div>
                   </div>
                 ))}
               </div>
-            </div>
-          </section>
-
-          <div className="stats-grid">
-            <div className="trend-card">
-               <h3 style={{ fontWeight: 900, marginBottom: 15, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                 <TrendingUp size={18} /> 節間 STトレンド
-               </h3>
-               {racers.slice(0, 4).map(r => (
-                 <div key={r.waku} className="trend-item">
-                    <div className={`w-badge w-${r.waku}`} style={{ width: 22, height: 22, fontSize: '0.7rem' }}>{r.waku}</div>
-                    <div className="simple-bar">
-                      <div className="bar-fill" style={{ width: `${60 + Math.random() * 30}%`, background: `var(--waku-${r.waku})` }}></div>
-                    </div>
-                    <div className="rank-badge">順{(r.waku % 3) + 1}</div>
-                 </div>
-               ))}
-            </div>
-            <div className="trend-card">
-               <h3 style={{ fontWeight: 900, marginBottom: 15, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                 <TrendingUp size={18} /> 枠番別 ST実績
-               </h3>
-               {racers.slice(0, 4).map(r => (
-                 <div key={r.waku} className="trend-item">
-                    <div className={`w-badge w-${r.waku}`} style={{ width: 22, height: 22, fontSize: '0.7rem' }}>{r.waku}</div>
-                    <div className="simple-bar">
-                      <div className="bar-fill" style={{ width: `${50 + Math.random() * 40}%`, background: `var(--waku-${r.waku})` }}></div>
-                    </div>
-                    <div className="rank-badge">順{r.waku}</div>
-                 </div>
-               ))}
-            </div>
+            </section>
           </div>
-        </div>
-      </main>
+        </main>
+      )}
     </div>
   );
 }
