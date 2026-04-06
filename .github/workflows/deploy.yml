@@ -43,6 +43,13 @@ jobs:
             --allow-unauthenticated \
             --set-env-vars "DATABASE_URL=${{ secrets.DATABASE_URL }}"
 
+      - name: Confirm Final Manifest URL (Anti-Lie Audit)
+        run: |-
+          echo "AUDIT: THE TRUE DEPLOYMENT URL IS BELOW"
+          gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region ${{ env.REGION }} \
+            --format='value(status.url)'
+
 # FORCE_RETRIGGER_V2
 
 # FORCE_DEPLOY_FINAL_SUCCESS_V7_202604070134
