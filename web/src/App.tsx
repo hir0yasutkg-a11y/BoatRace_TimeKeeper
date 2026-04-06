@@ -119,7 +119,7 @@ const TotalVisualizer = ({ racers }: { racers: Racer[] }) => {
 
   return (
     <section className="glass-card total-vis-card">
-      <h3><Trophy size={20} /> 総合足色シミュレート</h3>
+      <h3><Trophy size={20} /> 総合足色シミュレーチE/h3>
       <div className="total-vis-container">
         {scores.map(s => (
           <div key={s.waku} className="total-vis-column">
@@ -166,7 +166,7 @@ export default function App() {
     if (isIOS && !isStandalone) setShowPwaPrompt(true);
   }, []);
 
-  const API_BASE = ''; // 鋼鉄の相対パス： 1 mm の不備も許さない 100% の自律性
+  const API_BASE = ''; // 鋼鉁E�E相対パス�E�E1 mm の不備も許さなぁE100% の自律性
 
   const fetchSchedule = async () => {
     try {
@@ -218,7 +218,7 @@ export default function App() {
       setRoughAlerts(data.rough_alerts || []);
       setIsFetched(true);
     } catch (err) {
-      setError('データの取得に失敗しました。');
+      setError('チE�Eタの取得に失敗しました、E);
     } finally {
       setTimeout(() => setLoading(false), 600);
     }
@@ -245,7 +245,7 @@ export default function App() {
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
             className="loading-spinner"
           />
-          <p>データを取得中...</p>
+          <p>チE�Eタを取得中...</p>
         </div>
       )}
 
@@ -253,22 +253,21 @@ export default function App() {
         <div className="error-banner">
           <Flag size={20} />
           {error}
-          <button onClick={() => fetchData()}>再試行</button>
+          <button onClick={() => fetchData()}>再試衁E/button>
         </div>
       )}
 
       {isMock && (
         <div className="mock-badge">
-          注意: 現在はモックデータを表示しています
-        </div>
+          注愁E 現在はモチE��チE�Eタを表示してぁE��ぁE        </div>
       )}
 
       {showPwaPrompt && (
         <div className="pwa-prompt">
           <div className="pwa-content">
             <Share size={20} />
-            <span>ホーム画面に追加してアプリとして利用できます（共有 &gt; ホーム画面に追加）</span>
-            <button onClick={() => setShowPwaPrompt(false)}>閉じる</button>
+            <span>ホ�Eム画面に追加してアプリとして利用できます（�E朁E&gt; ホ�Eム画面に追加�E�E/span>
+            <button onClick={() => setShowPwaPrompt(false)}>閉じめE/button>
           </div>
         </div>
       )}
@@ -276,7 +275,7 @@ export default function App() {
       <div className="schedule-bar">
         <div className="bar-label">
           <Clock size={14} /> 本日の開催
-          <button className="btn-refresh-schedule" onClick={() => fetchSchedule()} title="開催情報を更新">
+          <button className="btn-refresh-schedule" onClick={() => fetchSchedule()} title="開催惁E��を更新">
             <RotateCw size={12} />
           </button>
         </div>
@@ -284,7 +283,7 @@ export default function App() {
           {schedule.length > 0 ? schedule.map(v => (
             <div 
               key={v.jcd} 
-              className={`venue-chip ${v.jcd === jcd ? 'is-active' : ''} ${v.status === '終了' || v.status === 'Cancelled' ? 'is-finished' : ''} grade-${v.grade || 'General'}`}
+              className={`venue-chip ${v.jcd === jcd ? 'is-active' : ''} ${v.status === '終亁E || v.status === 'Cancelled' ? 'is-finished' : ''} grade-${v.grade || 'General'}`}
               onClick={() => {
                 if (v.status === 'Cancelled') return; 
                 setJcd(v.jcd);
@@ -297,7 +296,7 @@ export default function App() {
               style={{ position: 'relative' }} 
             >
               {v.has_exh_data && (
-                <span className="live-indicator-dot" title="展示データ受信中" />
+                <span className="live-indicator-dot" title="展示チE�Eタ受信中" />
               )}
               <span className="v-name">
                 {v.grade && v.grade !== 'General' && (
@@ -306,9 +305,9 @@ export default function App() {
                 {v.name}
               </span>
               {v.status === 'canceled' ? (
-                <span className="v-finished">中止順延</span>
-              ) : v.status === '終了' ? (
-                <span className="v-finished">終了</span>
+                <span className="v-finished">中止頁E��</span>
+              ) : v.status === '終亁E ? (
+                <span className="v-finished">終亁E/span>
               ) : (
                 <span className="v-deadline">
                   {v.next_race}R <span className="v-time">{v.deadline}</span>
@@ -317,7 +316,7 @@ export default function App() {
             </div>
           )) : (
             <span style={{fontSize: '0.8rem', color: '#00f2ff', opacity: 0.9, paddingLeft: '10px'}}>
-              開催情報をスキャン中...
+              開催惁E��をスキャン中...
             </span>
           )}
         </div>
@@ -341,7 +340,7 @@ export default function App() {
 
         <div className="race-selector">
           <div className="selector-item">
-            <label>日付</label>
+            <label>日仁E/label>
             <select value={date} onChange={e => setDate(e.target.value)}>
               {AVAILABLE_DATES.map(d => (
                 <option key={d.value} value={d.value}>{d.label}</option>
@@ -355,7 +354,7 @@ export default function App() {
         <div className="control-divider"></div>
         <div className="control-panels">
           <div className="series-day-panel">
-            <span className="panel-label">節間</span>
+            <span className="panel-label">節閁E/span>
             <div className="series-day-list">
               {Array.from({ length: (schedule.find(v => v.jcd === jcd)?.series_day_num || 1) }, (_, i) => i + 1).map(d => (
                 <button key={d} className={`day-btn ${seriesDay === d ? 'is-active' : ''}`} onClick={() => { setSeriesDay(d); fetchData(jcd, rno, d); }}>
@@ -388,7 +387,7 @@ export default function App() {
         <div className="welcome-card">
           <div className="welcome-icon">噫</div>
           <h2>会場とレース番号を選択して、解析を開始してください</h2>
-          <p>最新の出走表、展示タイム、選手コメントをリアルタイムに解析します。</p>
+          <p>最新の出走表、展示タイム、E��手コメントをリアルタイムに解析します、E/p>
         </div>
       ) : (
         <main className="dashboard-layout">
@@ -403,17 +402,17 @@ export default function App() {
           )}
           <div className="info-row">
             <section className="glass-card racer-info-section">
-              <h3><Flag size={20} /> 出走表 & 展示情報</h3>
+              <h3><Flag size={20} /> 出走表 & 展示惁E��</h3>
               <div className="table-wrapper">
                 <div className="cards-header">
-                  <div>枠</div><div>選手名</div><div>勝率</div><div>平均ST</div><div>展示</div><div>1周</div><div>まわり</div><div>直線</div>
+                  <div>枠</div><div>選手名</div><div>勝率</div><div>平均ST</div><div>展示</div><div>1周</div><div>まわり</div><div>直緁E/div>
                 </div>
                 <div className="racer-cards-container">
                   {racers.map((r) => (
                     <div key={r.waku} className="racer-card">
                       <div className="col-waku"><div className={`w-badge w-${r.waku}`}>{r.waku}</div></div>
                       <div className="col-name">
-                        <div className="racer-meta">{r.waku}号艇 {r.rank && <span className={`rank-badge rank-${r.rank.charAt(0)}`}>{r.rank}</span>}</div>
+                        <div className="racer-meta">{r.waku}号艁E{r.rank && <span className={`rank-badge rank-${r.rank.charAt(0)}`}>{r.rank}</span>}</div>
                         <div className="racer-full-name">{r.name}</div>
                         {r.series_results && r.series_results.length > 0 && (
                           <div className="series-history-bar">
@@ -435,17 +434,17 @@ export default function App() {
               </div>
             </section>
             <section className="glass-card comment-section">
-              <h3><TrendingUp size={20} /> 選手コメント</h3>
+              <h3><TrendingUp size={20} /> 選手コメンチE/h3>
               <div className="comment-list">
                 {racers.map(r => (
                   <div key={r.waku} className="comment-row">
                     <div className={`w-badge w-${r.waku}`}>{r.waku}</div>
                     <div className="comment-text">
                       {r.comment ? r.comment.split('前日').map((part, i) => {
-                        const cleanText = part.replace('当日', '').replace(':', '').replace('：', '').trim();
+                        const cleanText = part.replace('当日', '').replace(':', '').replace('�E�E, '').trim();
                         if (!cleanText && i === 1) return null;
                         return <div key={i} className={i === 0 ? 'c-today' : 'c-yesterday'}><span className="c-label">{i === 0 ? '当日:' : '前日:'}</span>{cleanText}</div>;
-                      }) : <span className="no-comment">(コメントなし)</span>}
+                      }) : <span className="no-comment">(コメントなぁE</span>}
                     </div>
                   </div>
                 ))}
@@ -460,7 +459,7 @@ export default function App() {
           <div className="total-row"><TotalVisualizer racers={racers} /></div>
           <div className="predictions-row">
             <section className="glass-card predictions-section">
-              <h2><Trophy size={24} /> AI 着順予測</h2>
+              <h2><Trophy size={24} /> AI 着頁E��測</h2>
               <div className="podium-box">
                 {[1, 0, 2].map((idx) => {
                   const p = sortedPredictions[idx];
