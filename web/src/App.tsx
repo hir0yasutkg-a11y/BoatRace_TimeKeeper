@@ -41,6 +41,8 @@ interface VenueSchedule {
   status: string;
   grade?: 'SG' | 'G1' | 'G2' | 'G3' | 'General';
   event?: 'Ladies' | 'Rookie' | 'Masters' | null;
+  series_name?: string;
+  series_day?: string;
   next_race: string | null;
   deadline: string | null;
   has_exh_data?: boolean;
