@@ -1,20 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Trophy, 
-  Flag, 
-  Timer, 
-  TrendingUp, 
-  Clock, 
-  MapPin, 
-  RotateCw,
-  Share
-} from 'lucide-react';
+import { Trophy, Flag, Timer, TrendingUp, Clock, RotateCw, Share } from 'lucide-react';
 import './App.css';
 
-// ----------------------------------------------------------------------------
-// Types & Interfaces
-// ----------------------------------------------------------------------------
+// Types
 interface Racer {
   waku: number;
   name: string;
@@ -55,21 +44,17 @@ interface VenueSchedule {
 }
 
 const AVAILABLE_DATES = [
-  { label: '本日 (4/7)', value: '20260407' },
-  { label: '昨日 (4/6)', value: '20260406' },
+  { label: '\u672C\u65E5 (4/7)', value: '20260407' },
+  { label: '\u6628\u65E5 (4/6)', value: '20260406' },
   { label: '4/5', value: '20260405' },
 ];
 
-// ----------------------------------------------------------------------------
-// Components
-// ----------------------------------------------------------------------------
-
-const TimeVisualizer = ({ title, racers, timeKey, icon, speedKmh = 50 }: { 
-  title: string, 
-  racers: Racer[], 
-  timeKey: keyof Racer,
-  icon: React.ReactNode,
-  speedKmh?: number 
+// Sub-components
+const TimeVisualizer = ({ title, racers, timeKey, icon }: {
+  title: string;
+  racers: Racer[];
+  timeKey: keyof Racer;
+  icon: React.ReactNode;
 }) => {
   const times = racers.map(r => r[timeKey] as number).filter(t => t > 0);
   const min = Math.min(...times);
@@ -88,7 +73,7 @@ const TimeVisualizer = ({ title, racers, timeKey, icon, speedKmh = 50 }: {
             <div key={r.waku} className="vis-row">
               <div className={`w-badge w-${r.waku}`}>{r.waku}</div>
               <div className="vis-track">
-                <motion.div 
+                <motion.div
                   className="vis-ship"
                   initial={{ left: 0 }}
                   animate={{ left: `${normalized * 75}%` }}
@@ -119,12 +104,12 @@ const TotalVisualizer = ({ racers }: { racers: Racer[] }) => {
 
   return (
     <section className="glass-card total-vis-card">
-      <h3><Trophy size={20} /> 総合足色シミュレーチE/h3>
+      <h3><Trophy size={20} /> \u7DCF\u5408\u8A55\u4FA1\u30B7\u30DF\u30E5\u30EC\u30FC\u30BF</h3>
       <div className="total-vis-container">
         {scores.map(s => (
           <div key={s.waku} className="total-vis-column">
             <div className="total-bar-wrapper">
-              <motion.div 
+              <motion.div
                 className={`total-bar w-${s.waku}-bg`}
                 initial={{ height: 0 }}
                 animate={{ height: `${(s.total / maxScore) * 100}%` }}
@@ -138,26 +123,23 @@ const TotalVisualizer = ({ racers }: { racers: Racer[] }) => {
   );
 };
 
-// ----------------------------------------------------------------------------
-// Main Application
-// ----------------------------------------------------------------------------
-
+// Main App
 export default function App() {
   const [schedule, setSchedule] = useState<VenueSchedule[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isFetched, setIsFetched] = useState(false);
-  
+
   const [racers, setRacers] = useState<Racer[]>([]);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [roughAlerts, setRoughAlerts] = useState<{type:string, message:string}[]>([]);
   const [sourceUrls, setSourceUrls] = useState({ list: '', before: '' });
   const [isMock, setIsMock] = useState(false);
-  
+
   const [showPwaPrompt, setShowPwaPrompt] = useState(false);
   const [date, setDate] = useState(AVAILABLE_DATES[0].value);
-  const [jcd, setJcd] = useState('02'); 
-  const [rno, setRno] = useState('1'); 
+  const [jcd, setJcd] = useState('02');
+  const [rno, setRno] = useState('1');
   const [seriesDay, setSeriesDay] = useState<number>(1);
 
   useEffect(() => {
@@ -166,7 +148,7 @@ export default function App() {
     if (isIOS && !isStandalone) setShowPwaPrompt(true);
   }, []);
 
-  const API_BASE = ''; // 鋼鉁E�E相対パス�E�E1 mm の不備も許さなぁE100% の自律性
+  const API_BASE = '';
 
   const fetchSchedule = async () => {
     try {
@@ -182,17 +164,17 @@ export default function App() {
     const activeJcd = targetJcd || jcd;
     const activeRno = targetRno || rno;
     const activeDayNum = targetDay || seriesDay;
-    
+
     let targetDate = date;
     const vInfo = schedule.find(v => v.jcd === activeJcd);
     if (vInfo && vInfo.series_day_num) {
-        const diff = vInfo.series_day_num - activeDayNum;
-        const d = new Date(date.slice(0,4)+"-"+date.slice(4,6)+"-"+date.slice(6,8));
-        d.setDate(d.getDate() - diff);
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        targetDate = `${yyyy}${mm}${dd}`;
+      const diff = vInfo.series_day_num - activeDayNum;
+      const d = new Date(date.slice(0,4)+"-"+date.slice(4,6)+"-"+date.slice(6,8));
+      d.setDate(d.getDate() - diff);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      targetDate = `${yyyy}${mm}${dd}`;
     }
 
     if (!activeJcd) return;
@@ -208,8 +190,8 @@ export default function App() {
         setError(data.error);
         return;
       }
-      const activeRacers = (data.racers || []).filter((r: any) => 
-        r.name !== "Unknown" && !r.name.includes("欠場")
+      const activeRacers = (data.racers || []).filter((r: any) =>
+        r.name !== "Unknown" && !r.name.includes("\u6B20\u5834")
       );
       setRacers(activeRacers);
       setPredictions(data.predictions || []);
@@ -218,7 +200,7 @@ export default function App() {
       setRoughAlerts(data.rough_alerts || []);
       setIsFetched(true);
     } catch (err) {
-      setError('チE�Eタの取得に失敗しました、E);
+      setError('\u30C7\u30FC\u30BF\u306E\u53D6\u5F97\u306B\u5931\u6557\u3057\u307E\u3057\u305F');
     } finally {
       setTimeout(() => setLoading(false), 600);
     }
@@ -240,12 +222,12 @@ export default function App() {
     <div className="app-container">
       {loading && (
         <div className="loading-overlay">
-          <motion.div 
+          <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
             className="loading-spinner"
           />
-          <p>チE�Eタを取得中...</p>
+          <p>\u30C7\u30FC\u30BF\u3092\u53D6\u5F97\u4E2D...</p>
         </div>
       )}
 
@@ -253,39 +235,41 @@ export default function App() {
         <div className="error-banner">
           <Flag size={20} />
           {error}
-          <button onClick={() => fetchData()}>再試衁E/button>
+          <button onClick={() => fetchData()}>\u518D\u8A66\u884C</button>
         </div>
       )}
 
       {isMock && (
         <div className="mock-badge">
-          注愁E 現在はモチE��チE�Eタを表示してぁE��ぁE        </div>
+          \u6CE8\u610F: \u73FE\u5728\u306F\u30E2\u30C3\u30AF\u30C7\u30FC\u30BF\u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059
+        </div>
       )}
 
       {showPwaPrompt && (
         <div className="pwa-prompt">
           <div className="pwa-content">
             <Share size={20} />
-            <span>ホ�Eム画面に追加してアプリとして利用できます（�E朁E&gt; ホ�Eム画面に追加�E�E/span>
-            <button onClick={() => setShowPwaPrompt(false)}>閉じめE/button>
+            <span>\u30DB\u30FC\u30E0\u753B\u9762\u306B\u8FFD\u52A0\u3057\u3066\u30A2\u30D7\u30EA\u3068\u3057\u3066\u5229\u7528\u3067\u304D\u307E\u3059\uFF08\u5171\u6709 &gt; \u30DB\u30FC\u30E0\u753B\u9762\u306B\u8FFD\u52A0\uFF09</span>
+            <button onClick={() => setShowPwaPrompt(false)}>\u9589\u3058\u308B</button>
           </div>
         </div>
       )}
 
+      {/* Schedule Bar */}
       <div className="schedule-bar">
         <div className="bar-label">
-          <Clock size={14} /> 本日の開催
-          <button className="btn-refresh-schedule" onClick={() => fetchSchedule()} title="開催惁E��を更新">
+          <Clock size={14} /> \u672C\u65E5\u306E\u958B\u50AC
+          <button className="btn-refresh-schedule" onClick={() => fetchSchedule()} title="\u958B\u50AC\u60C5\u5831\u3092\u66F4\u65B0">
             <RotateCw size={12} />
           </button>
         </div>
         <div className="venue-list">
           {schedule.length > 0 ? schedule.map(v => (
-            <div 
-              key={v.jcd} 
-              className={`venue-chip ${v.jcd === jcd ? 'is-active' : ''} ${v.status === '終亁E || v.status === 'Cancelled' ? 'is-finished' : ''} grade-${v.grade || 'General'}`}
+            <div
+              key={v.jcd}
+              className={`venue-chip ${v.jcd === jcd ? 'is-active' : ''} ${v.status === '\u7D42\u4E86' || v.status === 'Cancelled' ? 'is-finished' : ''} grade-${v.grade || 'General'}`}
               onClick={() => {
-                if (v.status === 'Cancelled') return; 
+                if (v.status === 'Cancelled') return;
                 setJcd(v.jcd);
                 const nextR = v.next_race ? String(v.next_race) : "1";
                 setRno(nextR);
@@ -293,10 +277,10 @@ export default function App() {
                 setSeriesDay(currentDayNum);
                 fetchData(v.jcd, nextR, currentDayNum);
               }}
-              style={{ position: 'relative' }} 
+              style={{ position: 'relative' }}
             >
               {v.has_exh_data && (
-                <span className="live-indicator-dot" title="展示チE�Eタ受信中" />
+                <span className="live-indicator-dot" title="\u5C55\u793A\u30C7\u30FC\u30BF\u53D7\u4FE1\u4E2D" />
               )}
               <span className="v-name">
                 {v.grade && v.grade !== 'General' && (
@@ -305,9 +289,9 @@ export default function App() {
                 {v.name}
               </span>
               {v.status === 'canceled' ? (
-                <span className="v-finished">中止頁E��</span>
-              ) : v.status === '終亁E ? (
-                <span className="v-finished">終亁E/span>
+                <span className="v-finished">\u4E2D\u6B62\u4E8B\u614B</span>
+              ) : v.status === '\u7D42\u4E86' ? (
+                <span className="v-finished">\u7D42\u4E86</span>
               ) : (
                 <span className="v-deadline">
                   {v.next_race}R <span className="v-time">{v.deadline}</span>
@@ -316,31 +300,32 @@ export default function App() {
             </div>
           )) : (
             <span style={{fontSize: '0.8rem', color: '#00f2ff', opacity: 0.9, paddingLeft: '10px'}}>
-              開催惁E��をスキャン中...
+              \u958B\u50AC\u60C5\u5831\u3092\u30B9\u30AD\u30E3\u30F3\u4E2D...
             </span>
           )}
         </div>
       </div>
 
+      {/* Header */}
       <header className="glass-header">
         <div className="logo">
-          <div className="icon">潤</div>
-          <h1>BoatRace <span>Cockpit [ULTIMATE-AUDIT]</span></h1>
+          <div className="icon">{'\u{1F3C1}'}</div>
+          <h1>BoatRace <span>Cockpit</span></h1>
         </div>
-        
+
         {isFetched && racers.length > 0 && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="series-info-hud">
             <div className="series-hud-label">CURRENT_SERIES_DATA</div>
             <div className="series-hud-content">
-              <span className="series-name">{schedule.find(v => v.jcd === jcd)?.series_name || '一般戦'}</span>
-              <span className="series-day-badge">{schedule.find(v => v.jcd === jcd)?.series_day || '開催中'}</span>
+              <span className="series-name">{schedule.find(v => v.jcd === jcd)?.series_name || '\u4E00\u822C\u6226'}</span>
+              <span className="series-day-badge">{schedule.find(v => v.jcd === jcd)?.series_day || '\u958B\u50AC\u4E2D'}</span>
             </div>
           </motion.div>
         )}
 
         <div className="race-selector">
           <div className="selector-item">
-            <label>日仁E/label>
+            <label>\u65E5\u4ED8</label>
             <select value={date} onChange={e => setDate(e.target.value)}>
               {AVAILABLE_DATES.map(d => (
                 <option key={d.value} value={d.value}>{d.label}</option>
@@ -350,27 +335,28 @@ export default function App() {
         </div>
       </header>
 
+      {/* Control Panel: Series Day + 12 Race Buttons */}
       <div className="control-bar-container">
         <div className="control-divider"></div>
         <div className="control-panels">
           <div className="series-day-panel">
-            <span className="panel-label">節閁E/span>
+            <span className="panel-label">\u7BC0\u9593</span>
             <div className="series-day-list">
               {Array.from({ length: (schedule.find(v => v.jcd === jcd)?.series_day_num || 1) }, (_, i) => i + 1).map(d => (
                 <button key={d} className={`day-btn ${seriesDay === d ? 'is-active' : ''}`} onClick={() => { setSeriesDay(d); fetchData(jcd, rno, d); }}>
-                  {d === (schedule.find(v => v.jcd === jcd)?.series_day_num) ? '今日' : `${d}日目`}
+                  {d === (schedule.find(v => v.jcd === jcd)?.series_day_num) ? '\u4ECA\u65E5' : `${d}\u65E5\u76EE`}
                 </button>
               ))}
             </div>
           </div>
-          
+
           <div className="vertical-divider"></div>
 
           <div className="race-number-panel">
-            <span className="panel-label">レース番号</span>
+            <span className="panel-label">\u30EC\u30FC\u30B9\u756A\u53F7</span>
             <div className="race-number-list">
               {[1,2,3,4,5,6,7,8,9,10,11,12].map(n => {
-                const nextR = parseInt(schedule.find(v => v.jcd === jcd)?.next_race || "13");
+                const nextR = parseInt(String(schedule.find(v => v.jcd === jcd)?.next_race || "13"));
                 const isFinished = n < nextR && seriesDay === (schedule.find(v => v.jcd === jcd)?.series_day_num);
                 return (
                   <button key={n} className={`race-btn ${rno === String(n) ? 'is-active' : ''} ${isFinished ? 'is-finished' : ''}`} onClick={() => { setRno(String(n)); fetchData(jcd, String(n), seriesDay); }}>
@@ -383,11 +369,12 @@ export default function App() {
         </div>
       </div>
 
+      {/* Main Content */}
       {!isFetched && !loading ? (
         <div className="welcome-card">
-          <div className="welcome-icon">噫</div>
-          <h2>会場とレース番号を選択して、解析を開始してください</h2>
-          <p>最新の出走表、展示タイム、E��手コメントをリアルタイムに解析します、E/p>
+          <div className="welcome-icon">{'\u{1F680}'}</div>
+          <h2>\u4F1A\u5834\u3068\u30EC\u30FC\u30B9\u756A\u53F7\u3092\u9078\u629E\u3057\u3066\u3001\u4E88\u60F3\u3092\u958B\u59CB\u3057\u3066\u304F\u3060\u3055\u3044</h2>
+          <p>\u6700\u65B0\u306E\u51FA\u8D70\u8868\u3001\u5C55\u793A\u30BF\u30A4\u30E0\u3001\u9078\u624B\u30B3\u30E1\u30F3\u30C8\u3092\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u306B\u89E3\u6790\u3057\u307E\u3059</p>
         </div>
       ) : (
         <main className="dashboard-layout">
@@ -402,22 +389,22 @@ export default function App() {
           )}
           <div className="info-row">
             <section className="glass-card racer-info-section">
-              <h3><Flag size={20} /> 出走表 & 展示惁E��</h3>
+              <h3><Flag size={20} /> \u51FA\u8D70\u8868 & \u5C55\u793A\u60C5\u5831</h3>
               <div className="table-wrapper">
                 <div className="cards-header">
-                  <div>枠</div><div>選手名</div><div>勝率</div><div>平均ST</div><div>展示</div><div>1周</div><div>まわり</div><div>直緁E/div>
+                  <div>\u67A0</div><div>\u9078\u624B\u540D</div><div>\u52DD\u7387</div><div>\u5E73\u5747ST</div><div>\u5C55\u793A</div><div>1\u5468</div><div>\u307E\u308F\u308A</div><div>\u76F4\u7DDA</div>
                 </div>
                 <div className="racer-cards-container">
                   {racers.map((r) => (
                     <div key={r.waku} className="racer-card">
                       <div className="col-waku"><div className={`w-badge w-${r.waku}`}>{r.waku}</div></div>
                       <div className="col-name">
-                        <div className="racer-meta">{r.waku}号艁E{r.rank && <span className={`rank-badge rank-${r.rank.charAt(0)}`}>{r.rank}</span>}</div>
+                        <div className="racer-meta">{r.waku}\u53F7\u8247 {r.rank && <span className={`rank-badge rank-${r.rank.charAt(0)}`}>{r.rank}</span>}</div>
                         <div className="racer-full-name">{r.name}</div>
                         {r.series_results && r.series_results.length > 0 && (
                           <div className="series-history-bar">
                             {r.series_results.map((sr, idx) => (
-                              <div key={idx} className={`sr-chip rank-${sr.rank}`} title={`${sr.date} ${sr.rno}R: ${sr.rank}着`}>{sr.rank}</div>
+                              <div key={idx} className={`sr-chip rank-${sr.rank}`} title={`${sr.date} ${sr.rno}R: ${sr.rank}\u7740`}>{sr.rank}</div>
                             ))}
                           </div>
                         )}
@@ -434,17 +421,17 @@ export default function App() {
               </div>
             </section>
             <section className="glass-card comment-section">
-              <h3><TrendingUp size={20} /> 選手コメンチE/h3>
+              <h3><TrendingUp size={20} /> \u9078\u624B\u30B3\u30E1\u30F3\u30C8</h3>
               <div className="comment-list">
                 {racers.map(r => (
                   <div key={r.waku} className="comment-row">
                     <div className={`w-badge w-${r.waku}`}>{r.waku}</div>
                     <div className="comment-text">
-                      {r.comment ? r.comment.split('前日').map((part, i) => {
-                        const cleanText = part.replace('当日', '').replace(':', '').replace('�E�E, '').trim();
+                      {r.comment ? r.comment.split('\u524D\u65E5').map((part, i) => {
+                        const cleanText = part.replace('\u5F53\u65E5', '').replace(':', '').replace('\uFF1A', '').trim();
                         if (!cleanText && i === 1) return null;
-                        return <div key={i} className={i === 0 ? 'c-today' : 'c-yesterday'}><span className="c-label">{i === 0 ? '当日:' : '前日:'}</span>{cleanText}</div>;
-                      }) : <span className="no-comment">(コメントなぁE</span>}
+                        return <div key={i} className={i === 0 ? 'c-today' : 'c-yesterday'}><span className="c-label">{i === 0 ? '\u5F53\u65E5:' : '\u524D\u65E5:'}</span>{cleanText}</div>;
+                      }) : <span className="no-comment">(\u30B3\u30E1\u30F3\u30C8\u306A\u3057)</span>}
                     </div>
                   </div>
                 ))}
@@ -452,14 +439,14 @@ export default function App() {
             </section>
           </div>
           <div className="simulators-row">
-            <TimeVisualizer title="展示タイム" icon={<Timer size={18} />} timeKey="exhibition_time" racers={racers} />
-            <TimeVisualizer title="まわり足" icon={<TrendingUp size={18} />} timeKey="turn_time" racers={racers} />
-            <TimeVisualizer title="直線タイム" icon={<TrendingUp size={18} />} timeKey="straight_time" racers={racers} />
+            <TimeVisualizer title="\u5C55\u793A\u30BF\u30A4\u30E0" icon={<Timer size={18} />} timeKey="exhibition_time" racers={racers} />
+            <TimeVisualizer title="\u307E\u308F\u308A\u8DB3" icon={<TrendingUp size={18} />} timeKey="turn_time" racers={racers} />
+            <TimeVisualizer title="\u76F4\u7DDA\u30BF\u30A4\u30E0" icon={<TrendingUp size={18} />} timeKey="straight_time" racers={racers} />
           </div>
           <div className="total-row"><TotalVisualizer racers={racers} /></div>
           <div className="predictions-row">
             <section className="glass-card predictions-section">
-              <h2><Trophy size={24} /> AI 着頁E��測</h2>
+              <h2><Trophy size={24} /> AI \u4E88\u60F3\u7D50\u679C</h2>
               <div className="podium-box">
                 {[1, 0, 2].map((idx) => {
                   const p = sortedPredictions[idx];
@@ -467,7 +454,7 @@ export default function App() {
                   return (
                     <div key={p.waku} className={`podium-rank p-${idx === 0 ? '1st' : idx === 1 ? '2nd' : '3rd'}`}>
                       <div className={`w-badge w-${p.waku}`}>{p.waku}</div>
-                      <div className="podium-base">{idx === 0 ? '1着' : idx === 1 ? '2着' : '3着'}</div>
+                      <div className="podium-base">{idx === 0 ? '1\u7740' : idx === 1 ? '2\u7740' : '3\u7740'}</div>
                     </div>
                   );
                 })}
@@ -488,4 +475,3 @@ export default function App() {
     </div>
   );
 }
-// FORCE_DEPLOY_FINAL_V6_MANIFEST_202604070132
