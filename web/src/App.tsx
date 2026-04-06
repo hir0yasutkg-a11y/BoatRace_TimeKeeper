@@ -309,7 +309,7 @@ export default function App() {
     if (isIOS && !isStandalone) setShowPwaPrompt(true);
   }, []);
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || ''; // 司令塔としてクラウド環境に 100% 自動適合
+  const API_BASE = ''; // 鋼鉄の相対パス：環境変数に頼らず 100% クラウド上で自身を参照
 
   const fetchSchedule = async () => {
     try {
