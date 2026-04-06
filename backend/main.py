@@ -176,7 +176,9 @@ def get_schedule(date: str, db: Session = Depends(get_db)):
     """
     指定された日付の全会場スケジュールを取得する。
     """
+    print(f"[API] Fetching schedule for {date}")
     venues = scraper.fetch_today_schedule(date)
+    print(f"[API] Found {len(venues)} venues for {date}")
     for v in venues:
         jcd = v['jcd']
         rno = v.get('next_race', '1')

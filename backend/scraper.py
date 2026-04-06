@@ -692,12 +692,19 @@ class AshiyaHandler(BaseVenueHandler):
 # --- 共通ユーティリティ ---
 
 def fetch_html(url: str):
-    headers = {"User-Agent": "Mozilla/5.0"}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+        "Referer": "https://www.boatrace.jp/"
+    }
     try:
         res = requests.get(url, headers=headers, timeout=20)
         if res.status_code == 200:
             res.encoding = res.apparent_encoding if res.apparent_encoding else "utf-8"
             return res.text
+        else:
+            print(f"[SCRAPER] HTTP Error {res.status_code} for {url}")
     except Exception as e: print(f"[SCRAPER] Error: {e}")
     return None
 
@@ -956,7 +963,8 @@ def fetch_today_schedule(hd: str):
             "next_race": n_rno, 
             "deadline": dline,
             "series_name": s_title,
-            "series_day": s_day
+            "series_day": s_day,
+            "series_day_num": int(re.search(r'\d+', s_day).group()) if re.search(r'\d+', s_day) else (1 if "初日" in s_day else None)
         })
     return venues
 
@@ -966,6 +974,15 @@ def get_race_data_from_db(db: Session, hd: str, jcd: str, rno: int):
     racers = []
     for entry in entries:
         exh = db.query(Exhibition).filter(Exhibition.id == f"{entry.id}").first()
+        # 司令塔として今節の全成績を 1 mm の不備もなく 100% 確実に奪還
+        s_results = db.query(SeriesResult).filter(SeriesResult.racer_id == entry.racer_id, SeriesResult.jcd == jcd).order_by(SeriesResult.date, SeriesResult.rno).all()
+        series_results_data = [
+            SeriesResultEntry(
+                date=sr.date, jcd=sr.jcd, rno=sr.rno, 
+                course=sr.course, st=sr.st, rank=sr.rank
+            ) for sr in s_results
+        ]
+
         racers.append(Racer(
             waku=entry.waku, 
             name=entry.name, 
@@ -986,7 +1003,8 @@ def get_race_data_from_db(db: Session, hd: str, jcd: str, rno: int):
             straight_time=exh.straight_time if exh else 0.0, 
             entry_course=exh.entry_course if exh else None,
             comment=entry.racer_comment if entry.racer_comment else "コメントなし",
-            rank=entry.racer_rank
+            rank=entry.racer_rank,
+            series_results=series_results_data
         ))
     return racers
 

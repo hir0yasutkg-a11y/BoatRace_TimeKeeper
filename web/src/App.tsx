@@ -14,9 +14,19 @@ import {
 import { motion } from 'framer-motion';
 import './index.css';
 
+interface SeriesResultEntry {
+  date: string;
+  jcd: string;
+  rno: number;
+  course?: number;
+  st?: number;
+  rank?: number;
+}
+
 interface Racer {
   waku: number;
   name: string;
+  racer_id?: string;
   rank?: string;
   rate_global: number;
   st_average: number;
@@ -27,6 +37,7 @@ interface Racer {
   straight_time?: number;
   entry_course?: number; // 司令塔として、進入コースを 1 mm の狂いもなく捕捉
   comment?: string;
+  series_results?: SeriesResultEntry[]; // 今節の全成績を 1 mm の不備もなく 100% 確実に奪還
 }
 
 interface Prediction {
@@ -43,6 +54,7 @@ interface VenueSchedule {
   event?: 'Ladies' | 'Rookie' | 'Masters' | null;
   series_name?: string;
   series_day?: string;
+  series_day_num?: number; // 司令塔として、 1 mm の狂いもなく経過日数を捕捉
   next_race: string | null;
   deadline: string | null;
   has_exh_data?: boolean;
@@ -287,19 +299,9 @@ export default function App() {
   const [roughAlerts, setRoughAlerts] = useState<{type: string, message: string}[]>([]); // 司令塔として、波乱の予兆を 1 mm の狂いもなく捕捉
   const [showPwaPrompt, setShowPwaPrompt] = useState(false);
   const [date, setDate] = useState(AVAILABLE_DATES[0].value);
-  const [jcd, setJcd] = useState('22'); 
+  const [jcd, setJcd] = useState('02'); 
   const [rno, setRno] = useState('1'); 
-
-  const venues = [
-    { id: '01', name: '桐生' }, { id: '02', name: '戸田' }, { id: '03', name: '江戸川' },
-    { id: '04', name: '平和島' }, { id: '05', name: '多摩川' }, { id: '06', name: '浜名湖' },
-    { id: '07', name: '蒲郡' }, { id: '08', name: '常滑' }, { id: '09', name: '津' },
-    { id: '10', name: '三国' }, { id: '11', name: 'びわこ' }, { id: '12', name: '住之江' },
-    { id: '13', name: '尼崎' }, { id: '14', name: '鳴門' }, { id: '15', name: '丸亀' },
-    { id: '16', name: '児島' }, { id: '17', name: '宮島' }, { id: '18', name: '徳山' },
-    { id: '19', name: '下関' }, { id: '20', name: '若松' }, { id: '21', name: '芦屋' },
-    { id: '22', name: '福岡' }, { id: '23', name: '唐津' }, { id: '24', name: '大村' }
-  ];
+  const [seriesDay, setSeriesDay] = useState<number>(1); // 司令塔として、現在の節間日数を 1 mm の不備もなく管理
 
   useEffect(() => {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -307,7 +309,7 @@ export default function App() {
     if (isIOS && !isStandalone) setShowPwaPrompt(true);
   }, []);
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || ''; // 司令塔としてクラウド環境に 100% 自動適合
 
   const fetchSchedule = async () => {
     try {
@@ -319,14 +321,31 @@ export default function App() {
     } catch (e) { console.error("Schedule fetch failed"); }
   };
 
-  const fetchData = async () => {
-    if (!jcd) return;
-    console.log("Fetching from:", `${API_BASE}/api/prediction/${date}/${jcd}/${rno}`);
+  const fetchData = async (targetJcd?: string, targetRno?: string, targetDay?: number) => {
+    const activeJcd = targetJcd || jcd;
+    const activeRno = targetRno || rno;
+    const activeDayNum = targetDay || seriesDay;
+    
+    // 司令塔としての 1 mm の狂いもない日付計算
+    let targetDate = AVAILABLE_DATES[0].value;
+    const vInfo = schedule.find(v => v.jcd === activeJcd);
+    if (vInfo && vInfo.series_day_num) {
+      const diff = vInfo.series_day_num - activeDayNum;
+      const d = new Date();
+      d.setDate(d.getDate() - diff);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      targetDate = `${yyyy}${mm}${dd}`;
+    }
+
+    if (!activeJcd) return;
+    console.log("Fetching from:", `${API_BASE}/api/prediction/${targetDate}/${activeJcd}/${activeRno}`);
     setLoading(true);
     setError('');
     setIsFetched(false);
     try {
-      const fetchUrl = `${API_BASE}/api/prediction/${date}/${jcd}/${rno}?t=${Date.now()}`;
+      const fetchUrl = `${API_BASE}/api/prediction/${targetDate}/${activeJcd}/${activeRno}?t=${Date.now()}`;
       console.log("Actual URL:", fetchUrl);
       const res = await fetch(fetchUrl);
       console.log("Response Status:", res.status);
@@ -415,17 +434,17 @@ export default function App() {
           {schedule.length > 0 ? schedule.map(v => (
             <div 
               key={v.jcd} 
-              className={`venue-chip ${v.jcd === jcd ? 'is-active' : ''} ${v.status === '終了' || v.status === 'canceled' ? 'is-finished' : ''} ${v.status === 'canceled' ? 'is-canceled' : ''} grade-${v.grade || 'General'}`}
+              className={`venue-chip ${v.jcd === jcd ? 'is-active' : ''} ${v.status === '終了' || v.status === 'Cancelled' ? 'is-finished' : ''} grade-${v.grade || 'General'}`}
               onClick={() => {
-                if (v.status === 'canceled') return; 
+                if (v.status === 'Cancelled') return; 
                 setJcd(v.jcd);
-                if (v.next_race) {
-                  setRno(v.next_race);
-                  setTimeout(() => {
-                    const btn = document.querySelector('.btn-fetch') as HTMLButtonElement;
-                    if (btn) btn.click();
-                  }, 100);
-                }
+                const nextR = v.next_race ? String(v.next_race) : "1";
+                setRno(nextR);
+                // 司令塔として、会場の現在の日数を自動セット
+                const currentDayNum = v.series_day_num || 1;
+                setSeriesDay(currentDayNum);
+                // 1 mm の狂いもなく即座に最新レースへジャンプ
+                fetchData(v.jcd, nextR, currentDayNum);
               }}
               style={{ position: 'relative' }} 
             >
@@ -452,7 +471,9 @@ export default function App() {
               )}
             </div>
           )) : (
-            <span style={{fontSize: '0.8rem', opacity: 0.7}}>開催情報を取得中...</span>
+            <span style={{fontSize: '0.8rem', color: '#00f2ff', opacity: 0.9, paddingLeft: '10px'}}>
+              ▋ 開催情報をスキャン中... (または本日終了)
+            </span>
           )}
         </div>
       </div>
@@ -498,36 +519,64 @@ export default function App() {
 
         <div className="race-selector">
           <div className="selector-item">
-            <label>日付</label>
+            <label>日付(カレンダー)</label>
             <select value={date} onChange={e => setDate(e.target.value)}>
               {AVAILABLE_DATES.map(d => (
                 <option key={d.value} value={d.value}>{d.label}</option>
               ))}
             </select>
           </div>
-          <div className="selector-item">
-            <label>会場</label>
-            <select value={jcd} onChange={e => setJcd(e.target.value)}>
-              {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-            </select>
-          </div>
-          <div className="selector-item">
-            <label>レース</label>
-            <select value={rno} onChange={e => setRno(e.target.value)}>
-              {[1,2,3,4,5,6,7,8,9,10,11,12].map(r => (
-                <option key={r} value={r.toString()}>{r} R</option>
-              ))}
-            </select>
-          </div>
-          <button 
-            className={`btn-fetch ${loading ? 'is-loading' : ''}`}
-            onClick={fetchData}
-            disabled={loading}
-          >
-            {loading ? '取得中...' : 'データ探索・予想開始'}
-          </button>
+          {/* 会場・レース選択は 12連ボタンに統合されたため撤去 */}
         </div>
       </header>
+
+      {/* --- 1 mm の不備も許さない 司令塔の 12連コントロールパネル --- */}
+      <div className="control-bar-container">
+        <div className="control-divider"></div>
+        <div className="control-panels">
+          <div className="series-day-panel">
+            <span className="panel-label">節間</span>
+            <div className="series-day-list">
+              {Array.from({ length: (schedule.find(v => v.jcd === jcd)?.series_day_num || 1) }, (_, i) => i + 1).map(d => (
+                <button 
+                  key={d} 
+                  className={`day-btn ${seriesDay === d ? 'is-active' : ''}`}
+                  onClick={() => {
+                    setSeriesDay(d);
+                    fetchData(jcd, rno, d);
+                  }}
+                >
+                  {d === (schedule.find(v => v.jcd === jcd)?.series_day_num) ? '今日' : `${d}日目`}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          <div className="vertical-divider"></div>
+
+          <div className="race-number-panel">
+            <span className="panel-label">レース番号</span>
+            <div className="race-number-list">
+              {[1,2,3,4,5,6,7,8,9,10,11,12].map(n => {
+                const nextR = parseInt(schedule.find(v => v.jcd === jcd)?.next_race || "13");
+                const isFinished = n < nextR && seriesDay === (schedule.find(v => v.jcd === jcd)?.series_day_num);
+                return (
+                  <button 
+                    key={n} 
+                    className={`race-btn ${rno === String(n) ? 'is-active' : ''} ${isFinished ? 'is-finished' : ''}`}
+                    onClick={() => {
+                      setRno(String(n));
+                      fetchData(jcd, String(n), seriesDay);
+                    }}
+                  >
+                    {n}<span className="unit">R</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {sourceUrls.list && (
         <div className="source-links-bar">
@@ -615,6 +664,15 @@ export default function App() {
                           )}
                         </div>
                         {r.name}
+                        {r.series_results && r.series_results.length > 0 && (
+                          <div className="series-history-bar">
+                            {r.series_results.map((sr, idx) => (
+                              <div key={idx} className={`sr-chip rank-${sr.rank}`} title={`${sr.date} ${sr.rno}R: ${sr.rank}着(${sr.course}コース) ST:${sr.st}`}>
+                                {sr.rank}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <div className="col-stat">{r.rate_global.toFixed(2)}</div>
                       <div className="col-stat">{r.st_average.toFixed(2)}</div>
