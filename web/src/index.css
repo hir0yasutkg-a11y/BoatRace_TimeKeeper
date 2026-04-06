@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   /* POP Theme Colors (RocketNews24 inspired) */
   --bg-main: #f4f6f8;
   --bg-white: #ffffff;
@@ -247,7 +247,7 @@ body {
 .start-line {
   position: absolute;
   top: 0;
-  left: 40px; /* 1cm(40px)右へ */
+  left: 40px; /* 1cm(40px)蜿ｳ縺ｸ */
   bottom: 0;
   width: 4px;
   background: #111111;
@@ -267,7 +267,7 @@ body {
   flex: 1;
   position: relative;
   height: 100%;
-  margin-left: 40px; /* 起点を線に合わせる */
+  margin-left: 40px; /* 襍ｷ轤ｹ繧堤ｷ壹↓蜷医ｏ縺帙ｋ */
 }
 
 .lane-boat-wrapper {
@@ -559,7 +559,7 @@ body {
 .venue-list {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap; /* 溢れたら確実に2段目へ */
+  flex-wrap: wrap; /* 貅｢繧後◆繧臥｢ｺ螳溘↓2谿ｵ逶ｮ縺ｸ */
   justify-content: flex-start;
   padding: 8px 0;
   flex-grow: 1;
@@ -568,8 +568,8 @@ body {
 .venue-chip {
   background: #333;
   color: #fff;
-  padding: 4px 10px; /* 少しコンパクトに */
-  border-radius: 10px; /* HUD感のある角丸に */
+  padding: 4px 10px; /* 蟆代＠繧ｳ繝ｳ繝代け繝医↓ */
+  border-radius: 10px; /* HUD諢溘・縺ゅｋ隗剃ｸｸ縺ｫ */
   font-size: 0.75rem;
   font-weight: 800;
   cursor: pointer;
@@ -706,7 +706,7 @@ body {
   100% { transform: scale(1); opacity: 1; }
 }
 
-/* --- 司令塔の 12連コントロールパネル・スタイル --- */
+/* --- 蜿ｸ莉､蝪斐・ 12騾｣繧ｳ繝ｳ繝医Ο繝ｼ繝ｫ繝代ロ繝ｫ繝ｻ繧ｹ繧ｿ繧､繝ｫ --- */
 .control-bar-container {
   background: #0a0f1d;
   padding: 12px 20px;
@@ -781,7 +781,7 @@ body {
   background: #1e293b;
 }
 
-/* 司令塔の発光エフェクト (Neon Glow) */
+/* 蜿ｸ莉､蝪斐・逋ｺ蜈峨お繝輔ぉ繧ｯ繝・(Neon Glow) */
 .day-btn.is-active, .race-btn.is-active {
   background: #00f2ff;
   color: #010816;
@@ -793,7 +793,7 @@ body {
 .race-btn.is-finished {
   opacity: 0.25;
   filter: grayscale(0.8);
-  pointer-events: none; /* 終了レースは選択不可にするか検討 */
+  pointer-events: none; /* 邨ゆｺ・Ξ繝ｼ繧ｹ縺ｯ驕ｸ謚樔ｸ榊庄縺ｫ縺吶ｋ縺区､懆ｨ・*/
 }
 
 .vertical-divider {
@@ -803,7 +803,7 @@ body {
   border-radius: 1px;
 }
 
-/* 節間成績（振り返り）チップ */
+/* 遽髢捺・邵ｾ・域険繧願ｿ斐ｊ・峨メ繝・・ */
 .series-history-bar {
   display: flex;
   gap: 4px;
@@ -893,7 +893,7 @@ body {
   border-radius: 50%;
 }
 
-/* 選手コメント表 (予想のヒント用) */
+/* 驕ｸ謇九さ繝｡繝ｳ繝郁｡ｨ (莠域Φ縺ｮ繝偵Φ繝育畑) */
 .comment-card {
   border: 4px solid var(--border-dark) !important;
 }
@@ -1095,7 +1095,7 @@ body {
   }
 }
 
-/* �i�ߓ��̍ŏI�����F���`�b�v�̋����� */
+/* 司令塔の最終調整：会場チップの強発光 */
 .venue-chip.is-active {
   background: #ff2e00 !important;
   color: white !important;
@@ -1104,3 +1104,24 @@ body {
   transform: scale(1.05) translateY(-1px);
   z-index: 10;
 }
+
+/* --- 司令塔の 12連コントロールパネルスタイル --- */
+.control-bar-container { background: #0a0f1d; padding: 12px 20px; border-bottom: 3px solid var(--border-dark); box-shadow: inset 0 10px 20px rgba(0,0,0,0.5); }
+.control-divider { height: 1px; background: linear-gradient(90deg, transparent, #00f2ff55, transparent); margin-bottom: 15px; }
+.control-panels { display: flex; align-items: center; gap: 30px; }
+.panel-label { font-size: 0.65rem; color: #00f2ff; font-weight: 950; text-transform: uppercase; margin-bottom: 6px; display: block; letter-spacing: 2px; opacity: 0.8; }
+.series-day-list, .race-number-list { display: flex; gap: 6px; flex-wrap: wrap; }
+.day-btn, .race-btn { background: #1a1e2e; border: 1px solid #334155; color: #94a3b8; font-weight: 900; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+.day-btn { padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; }
+.race-btn { width: 50px; height: 42px; border-radius: 8px; font-size: 1.1rem; flex-direction: column; }
+.race-btn .unit { font-size: 0.55rem; opacity: 0.6; margin-top: -2px; }
+.day-btn:hover, .race-btn:hover { border-color: #00f2ff; color: white; background: #1e293b; }
+.day-btn.is-active, .race-btn.is-active { background: #00f2ff; color: #010816; border-color: #fff; box-shadow: 0 0 20px rgba(0, 242, 255, 0.7); transform: translateY(-2px); }
+.race-btn.is-finished { opacity: 0.25; filter: grayscale(0.8); pointer-events: none; }
+.vertical-divider { width: 2px; height: 45px; background: rgba(255,255,255,0.1); }
+.series-history-bar { display: flex; gap: 4px; margin-top: 8px; }
+.sr-chip { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 950; border-radius: 4px; background: #e2e8f0; color: #0f172a; }
+.sr-chip.rank-1 { background: #fbbf24; color: #000; box-shadow: 0 0 8px rgba(251, 191, 36, 0.5); }
+.sr-chip.rank-2 { background: #94a3b8; color: #fff; }
+.sr-chip.rank-3 { background: #b45309; color: #fff; }
+.venue-chip.is-active { background: #ff2e00 !important; color: white !important; box-shadow: 0 0 20px rgba(255, 46, 0, 0.8) !important; border-color: white !important; transform: scale(1.05) translateY(-1px); z-index: 10; }
