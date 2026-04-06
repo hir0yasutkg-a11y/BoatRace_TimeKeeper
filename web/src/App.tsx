@@ -460,6 +460,40 @@ export default function App() {
           <div className="icon">🏁</div>
           <h1>BoatRace <span>Analyzer POP</span></h1>
         </div>
+        
+        {/* --- Series Info HUD --- */}
+        {isFetched && racers.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="series-info-hud"
+            style={{
+              padding: '8px 15px',
+              background: 'rgba(0, 242, 255, 0.05)',
+              borderLeft: '4px solid #00f2ff',
+              borderRadius: '0 8px 8px 0',
+              marginLeft: '20px',
+              flex: 1,
+              maxWidth: '400px'
+            }}
+          >
+            <div style={{ fontSize: '0.6rem', color: '#00f2ff', letterSpacing: '2px', fontWeight: 'bold' }}>CURRENT_SERIES_DATA</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+              <span style={{ fontSize: '0.95rem', fontWeight: 900, color: 'white' }}>{schedule.find(v => v.jcd === jcd)?.series_name || '一般戦'}</span>
+              <span style={{ 
+                fontSize: '0.75rem', 
+                color: '#00f2ff', 
+                fontWeight: 'bold',
+                padding: '1px 6px',
+                border: '1px solid #00f2ff',
+                borderRadius: '4px'
+              }}>
+                {schedule.find(v => v.jcd === jcd)?.series_day || '開催中'}
+              </span>
+            </div>
+          </motion.div>
+        )}
+
         <div className="race-selector">
           <div className="selector-item">
             <label>日付</label>
