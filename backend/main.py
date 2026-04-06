@@ -186,6 +186,32 @@ def get_schedule(date: str, db: Session = Depends(get_db)):
         
     return venues
 
+@app.get("/api/debug/env")
+def debug_env():
+    """クラウド環境のパスとファイルを調査する 1 mm の狂いもないデバッグ用エンドポイント"""
+    import os
+    curr_dir = os.path.dirname(__file__)
+    parent_dir = os.path.dirname(curr_dir)
+    
+    def get_structure(path, depth=2):
+        if depth == 0 or not os.path.exists(path):
+            return []
+        try:
+            return [{"name": f, "is_proto": os.path.isdir(os.path.join(path, f))} for f in os.listdir(path)]
+        except:
+            return "error"
+
+    return {
+        "__file__": __file__,
+        "cwd": os.getcwd(),
+        "dirname": curr_dir,
+        "parent": parent_dir,
+        "exists_web_dist": os.path.exists(os.path.join(curr_dir, "web", "dist")),
+        "exists_parent_web_dist": os.path.exists(os.path.join(parent_dir, "web", "dist")),
+        "curr_files": get_structure(curr_dir),
+        "parent_files": get_structure(parent_dir)
+    }
+
 # アーカイブ管理API
 import archiver
 from pathlib import Path
@@ -211,13 +237,28 @@ if os.path.exists(static_path):
 
 # 静的ファイルの提供 (Reactビルド用)
 # ローカルとDocker環境でパスが 1 mm 異なるため、両方を索敵
-dist_path = os.path.join(os.path.dirname(__file__), "..", "web", "dist")
-if not os.path.exists(dist_path):
-    dist_path = os.path.join(os.path.dirname(__file__), "web", "dist")
+possible_paths = [
+    os.path.join(os.path.dirname(__file__), "..", "web", "dist"),
+    os.path.join(os.path.dirname(__file__), "web", "dist"),
+    os.path.join(os.getcwd(), "web", "dist"),
+    "/app/web/dist"
+]
 
-if os.path.exists(dist_path):
+dist_path = None
+for p in possible_paths:
+    if os.path.exists(p) and os.path.isdir(p):
+        dist_path = p
+        break
+
+if dist_path:
+    print(f"Mounting static files from: {dist_path}")
     app.mount("/", StaticFiles(directory=dist_path, html=True), name="frontend")
     
     @app.exception_handler(404)
     async def not_found_handler(request, exc):
+        # API へのリクエストは SPA のルーティング対象外にする 1 mm の安全策
+        if request.url.path.startswith("/api"):
+            return HTTPException(status_code=404, detail="API Not Found")
         return FileResponse(os.path.join(dist_path, "index.html"))
+else:
+    print("WARNING: Static dist_path not found in any expected locations.")
