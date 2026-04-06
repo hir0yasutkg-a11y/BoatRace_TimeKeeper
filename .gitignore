@@ -62,7 +62,6 @@ backend/scripts/internal_utils/
 backend/data/archive/
 tmp/
 *.html
-*.txt
 *.lzh
 *.log
 *.log
