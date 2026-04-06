@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BoatRace Analyzer - 予想ダッシュボード</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="glass-header">
+            <div class="logo">
+                <span class="icon">🌊</span>
+                <h1>BoatRace <span>Analyzer</span></h1>
+            </div>
+            <div class="race-selector">
+                <select id="dateSelect">
+                    <option value="20240325">2024/03/25</option>
+                </select>
+                <select id="jcdSelect">
+                    <option value="01">桐生</option>
+                    <option value="02">戸田</option>
+                    <option value="03" selected>江戸川</option>
+                    <!-- other venues can be added later -->
+                </select>
+                <select id="raceSelect">
+                    <option value="1">1 R</option>
+                    <option value="12" selected>12 R (優勝戦)</option>
+                </select>
+                <button id="loadBtn" class="btn-primary">データ取得</button>
+            </div>
+        </header>
+
+        <!-- Main Dashboard -->
+        <main class="dashboard-grid">
+            
+            <!-- Left Column: Prediction Result -->
+            <section class="prediction-section glass-card">
+                <h2>AI 着順予測</h2>
+                <div class="prediction-podium" id="predictionPodium">
+                    <!-- Podium will be rendered by JS -->
+                </div>
+                
+                <h3 class="sub-heading">総合スコアランキング</h3>
+                <div class="score-list" id="scoreList">
+                    <!-- List will be rendered by JS -->
+                </div>
+            </section>
+
+            <!-- Right Column: Race Data -->
+            <section class="data-section">
+                <!-- Data Table -->
+                <div class="glass-card table-card table-wrapper">
+                    <h2>直前情報・タイム分析</h2>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>枠</th>
+                                <th>選手名</th>
+                                <th>勝率</th>
+                                <th>平均ST</th>
+                                <th>展示<br>タイム</th>
+                                <th>周回<br>タイム</th>
+                                <th>まわり足</th>
+                                <th>直線<br>タイム</th>
+                            </tr>
+                        </thead>
+                        <tbody id="racerTableBody">
+                            <!-- Rows rendered by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Feature Analysis Charts (Placeholder for future) -->
+                <div class="glass-card chart-card">
+                    <h2>タイム比較チャート</h2>
+                    <div class="chart-container flex-center">
+                        <div id="barChart" class="placeholder-chart">
+                            <!-- Custom HTML CSS bars for prototype -->
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
