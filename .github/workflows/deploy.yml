@@ -42,3 +42,5 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --set-env-vars "DATABASE_URL=${{ secrets.DATABASE_URL }}"
+
+# FORCE_RETRIGGER_V2

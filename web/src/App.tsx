@@ -35,10 +35,8 @@ interface Racer {
   lap_time?: number;
   turn_time?: number;
   straight_time?: number;
-  entry_course?: number; // 司令塔として、進入コースを 1 mm の狂いもなく捕捉
-  comment?: string;
-  series_results?: SeriesResultEntry[]; // 今節の全成績を 1 mm の不備もなく 100% 確実に奪還
-}
+  entry_course?: number; // 司令塔として、E��入コースめE1 mm の狂いもなく捕捁E  comment?: string;
+  series_results?: SeriesResultEntry[]; // 今節の全成績めE1 mm の不備もなぁE100% 確実に奪邁E}
 
 interface Prediction {
   waku: number;
@@ -54,13 +52,12 @@ interface VenueSchedule {
   event?: 'Ladies' | 'Rookie' | 'Masters' | null;
   series_name?: string;
   series_day?: string;
-  series_day_num?: number; // 司令塔として、 1 mm の狂いもなく経過日数を捕捉
-  next_race: string | null;
+  series_day_num?: number; // 司令塔として、E1 mm の狂いもなく経過日数を捕捁E  next_race: string | null;
   deadline: string | null;
   has_exh_data?: boolean;
 }
 
-// 日付生成をコンポーネントの外に出して再計算を抑制
+// 日付生成をコンポ�Eネント�E外に出して再計算を抑制
 const getAvailableDates = () => {
   const dates = [];
   const now = new Date();
@@ -97,14 +94,13 @@ const BoatIcon = ({ waku, className }: { waku: number; className?: string }) => 
 };
 
 const TimeVisualizer = ({ title, icon, timeKey, racers, speedKmh = 80 }: { title: string, icon: any, timeKey: keyof Racer, racers: Racer[], speedKmh?: number }) => {
-  // 有効なタイム（0より大きい）を持つ選手だけを抽出
+  // 有効なタイム�E�Eより大きい�E�を持つ選手だけを抽出
   const validRacers = racers.filter(r => (r[timeKey] as number) > 0);
-  if (validRacers.length === 0) return null; // データが全くなければ何も表示しない
-
+  if (validRacers.length === 0) return null; // チE�Eタが�Eくなければ何も表示しなぁE
   const times = validRacers.map(r => r[timeKey] as number);
   const maxTime = Math.max(...times);
   const minTime = Math.min(...times);
-  const pxPerMeter = 64 / 2.9; // 新スケール: 1艇身(2.9m) = 64px
+  const pxPerMeter = 64 / 2.9; // 新スケール: 1艁E��(2.9m) = 64px
 
   return (
     <section className="glass-card">
@@ -123,13 +119,13 @@ const TimeVisualizer = ({ title, icon, timeKey, racers, speedKmh = 80 }: { title
             return (
               <div key={r.waku} className="sim-lane" style={{ opacity: 0.3 }}>
                 <div className={`w-badge w-${r.waku}`}>{r.waku}</div>
-                <div className="lane-track"><span style={{ fontSize: '0.7rem', marginLeft: '10px' }}>データなし</span></div>
+                <div className="lane-track"><span style={{ fontSize: '0.7rem', marginLeft: '10px' }}>チE�EタなぁE/span></div>
               </div>
             );
           }
 
           const diff = maxTime - currentTime;
-          // 物理計算: 指定された速度における距離差(m)
+          // 物琁E��箁E 持E��された速度における距離差(m)
           // km/h * 1000 / 3600 = m/s
           const speedMs = (speedKmh * 1000) / 3600;
           const distanceGap = diff * speedMs;
@@ -209,8 +205,8 @@ const TotalVisualizer = ({ racers }: { racers: Racer[] }) => {
             LIVE ANALYSIS HUD [B-SYSTEM v2.5]
           </h2>
           <div style={{ display: 'flex', gap: '15px', marginTop: '5px' }}>
-            <span style={{ fontSize: '0.65rem', color: 'rgba(0, 242, 255, 0.7)', letterSpacing: '1px' }}>▋ STATUS: DATA_SYNCED</span>
-            <span style={{ fontSize: '0.65rem', color: 'rgba(0, 242, 255, 0.7)', letterSpacing: '1px' }}>▋ MODE: PERFORMANCE_AGGREGATION</span>
+            <span style={{ fontSize: '0.65rem', color: 'rgba(0, 242, 255, 0.7)', letterSpacing: '1px' }}>▁ESTATUS: DATA_SYNCED</span>
+            <span style={{ fontSize: '0.65rem', color: 'rgba(0, 242, 255, 0.7)', letterSpacing: '1px' }}>▁EMODE: PERFORMANCE_AGGREGATION</span>
           </div>
         </div>
         <div style={{ textAlign: 'right', background: 'rgba(0, 242, 255, 0.1)', padding: '8px 15px', border: '1px solid #00f2ff', borderRadius: '4px' }}>
@@ -296,20 +292,18 @@ export default function App() {
   const [isFetched, setIsFetched] = useState(false);
   const [isMock, setIsMock] = useState(false);
   const [sourceUrls, setSourceUrls] = useState<{list?: string, before?: string}>({});
-  const [roughAlerts, setRoughAlerts] = useState<{type: string, message: string}[]>([]); // 司令塔として、波乱の予兆を 1 mm の狂いもなく捕捉
-  const [showPwaPrompt, setShowPwaPrompt] = useState(false);
+  const [roughAlerts, setRoughAlerts] = useState<{type: string, message: string}[]>([]); // 司令塔として、波乱の予�EめE1 mm の狂いもなく捕捁E  const [showPwaPrompt, setShowPwaPrompt] = useState(false);
   const [date, setDate] = useState(AVAILABLE_DATES[0].value);
   const [jcd, setJcd] = useState('02'); 
   const [rno, setRno] = useState('1'); 
-  const [seriesDay, setSeriesDay] = useState<number>(1); // 司令塔として、現在の節間日数を 1 mm の不備もなく管理
-
+  const [seriesDay, setSeriesDay] = useState<number>(1); // 司令塔として、現在の節間日数めE1 mm の不備もなく管琁E
   useEffect(() => {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
     if (isIOS && !isStandalone) setShowPwaPrompt(true);
   }, []);
 
-  const API_BASE = ''; // 鋼鉄の相対パス：環境変数に頼らず 100% クラウド上で自身を参照
+  const API_BASE = ''; // 鋼鉁E�E相対パス�E�環墁E��数に頼らず 100% クラウド上で自身を参照
 
   const fetchSchedule = async () => {
     try {
@@ -326,8 +320,7 @@ export default function App() {
     const activeRno = targetRno || rno;
     const activeDayNum = targetDay || seriesDay;
     
-    // 司令塔としての 1 mm の狂いもない日付計算
-    let targetDate = AVAILABLE_DATES[0].value;
+    // 司令塔としての 1 mm の狂いもなぁE��付計箁E    let targetDate = AVAILABLE_DATES[0].value;
     const vInfo = schedule.find(v => v.jcd === activeJcd);
     if (vInfo && vInfo.series_day_num) {
       const diff = vInfo.series_day_num - activeDayNum;
@@ -356,7 +349,7 @@ export default function App() {
         setError(data.error);
         return;
       }
-      // 欠場艇（名前がUnknown、または名前に「欠場」を含む）を完全に除外してセット
+      // 欠場艁E��名前がUnknown、また�E名前に「欠場」を含む�E�を完�Eに除外してセチE��
       const activeRacers = (data.racers || []).filter((r: any) => 
         r.name !== "Unknown" && !r.name.includes("欠場")
       );
@@ -364,11 +357,11 @@ export default function App() {
       setPredictions(data.predictions || []);
       setIsMock(!!data.is_mock);
       setSourceUrls({ list: data.racelist_url, before: data.beforeinfo_url });
-      setRoughAlerts(data.rough_alerts || []); // 司令塔として、 100% 確実にアラートを同期
+      setRoughAlerts(data.rough_alerts || []); // 司令塔として、E100% 確実にアラートを同期
       setIsFetched(true);
     } catch (err) {
       console.error("Fetch Error:", err);
-      setError('データが取得できませんでした。ブラウザのコンソール（F12）で詳細を確認してください。');
+      setError('チE�Eタが取得できませんでした。ブラウザのコンソール�E�E12�E�で詳細を確認してください、E);
     } finally {
       setTimeout(() => setLoading(false), 600);
     }
@@ -395,7 +388,7 @@ export default function App() {
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
             className="loading-spinner"
           />
-          <p>データを取得中...</p>
+          <p>チE�Eタを取得中...</p>
         </div>
       )}
 
@@ -403,22 +396,21 @@ export default function App() {
         <div className="error-banner">
           <Flag size={20} />
           {error}
-          <button onClick={() => fetchData()}>再試行</button>
+          <button onClick={() => fetchData()}>再試衁E/button>
         </div>
       )}
 
       {isMock && (
         <div className="mock-badge">
-          ⚠️ 注意: 現在はデモ用データ（3/31分）を表示しています
-        </div>
+          ⚠�E�E注愁E 現在はチE��用チE�Eタ�E�E/31刁E��を表示してぁE��ぁE        </div>
       )}
 
       {showPwaPrompt && (
         <div className="pwa-prompt">
           <div className="pwa-content">
             <Share size={20} />
-            <span>ホーム画面に追加してアプリとして利用できます（共有 &gt; ホーム画面に追加）</span>
-            <button onClick={() => setShowPwaPrompt(false)}>閉じる</button>
+            <span>ホ�Eム画面に追加してアプリとして利用できます（�E朁E&gt; ホ�Eム画面に追加�E�E/span>
+            <button onClick={() => setShowPwaPrompt(false)}>閉じめE/button>
           </div>
         </div>
       )}
@@ -426,7 +418,7 @@ export default function App() {
       <div className="schedule-bar">
         <div className="bar-label">
           <Clock size={14} /> 本日の開催
-          <button className="btn-refresh-schedule" onClick={() => fetchSchedule()} title="開催情報を更新">
+          <button className="btn-refresh-schedule" onClick={() => fetchSchedule()} title="開催惁E��を更新">
             <RotateCw size={12} />
           </button>
         </div>
@@ -434,22 +426,21 @@ export default function App() {
           {schedule.length > 0 ? schedule.map(v => (
             <div 
               key={v.jcd} 
-              className={`venue-chip ${v.jcd === jcd ? 'is-active' : ''} ${v.status === '終了' || v.status === 'Cancelled' ? 'is-finished' : ''} grade-${v.grade || 'General'}`}
+              className={`venue-chip ${v.jcd === jcd ? 'is-active' : ''} ${v.status === '終亁E || v.status === 'Cancelled' ? 'is-finished' : ''} grade-${v.grade || 'General'}`}
               onClick={() => {
                 if (v.status === 'Cancelled') return; 
                 setJcd(v.jcd);
                 const nextR = v.next_race ? String(v.next_race) : "1";
                 setRno(nextR);
-                // 司令塔として、会場の現在の日数を自動セット
+                // 司令塔として、会場の現在の日数を�E動セチE��
                 const currentDayNum = v.series_day_num || 1;
                 setSeriesDay(currentDayNum);
-                // 1 mm の狂いもなく即座に最新レースへジャンプ
-                fetchData(v.jcd, nextR, currentDayNum);
+                // 1 mm の狂いもなく即座に最新レースへジャンチE                fetchData(v.jcd, nextR, currentDayNum);
               }}
               style={{ position: 'relative' }} 
             >
               {v.has_exh_data && (
-                <span className="live-indicator-dot" title="直前データ捕捉中！" />
+                <span className="live-indicator-dot" title="直前データ捕捉中�E�E />
               )}
               <span className="v-name">
                 {v.grade && v.grade !== 'General' && (
@@ -461,9 +452,9 @@ export default function App() {
                 {v.event === 'Masters' && <span className="event-badge masters">M</span>}
               </span>
               {v.status === 'canceled' ? (
-                <span className="v-finished">中止順延</span>
-              ) : v.status === '終了' ? (
-                <span className="v-finished">終了</span>
+                <span className="v-finished">中止頁E��</span>
+              ) : v.status === '終亁E ? (
+                <span className="v-finished">終亁E/span>
               ) : (
                 <span className="v-deadline">
                   {v.next_race}R <span className="v-time">{v.deadline}</span>
@@ -472,7 +463,7 @@ export default function App() {
             </div>
           )) : (
             <span style={{fontSize: '0.8rem', color: '#00f2ff', opacity: 0.9, paddingLeft: '10px'}}>
-              ▋ 開催情報をスキャン中... (または本日終了)
+              ▁E開催惁E��をスキャン中... (また�E本日終亁E
             </span>
           )}
         </div>
@@ -519,23 +510,23 @@ export default function App() {
 
         <div className="race-selector">
           <div className="selector-item">
-            <label>日付(カレンダー)</label>
+            <label>日仁Eカレンダー)</label>
             <select value={date} onChange={e => setDate(e.target.value)}>
               {AVAILABLE_DATES.map(d => (
                 <option key={d.value} value={d.value}>{d.label}</option>
               ))}
             </select>
           </div>
-          {/* 会場・レース選択は 12連ボタンに統合されたため撤去 */}
+          {/* 会場・レース選択�E 12連ボタンに統合されたため撤去 */}
         </div>
       </header>
 
-      {/* --- 1 mm の不備も許さない 司令塔の 12連コントロールパネル --- */}
+      {/* --- 1 mm の不備も許さなぁE司令塔�E 12連コントロールパネル --- */}
       <div className="control-bar-container">
         <div className="control-divider"></div>
         <div className="control-panels">
           <div className="series-day-panel">
-            <span className="panel-label">節間</span>
+            <span className="panel-label">節閁E/span>
             <div className="series-day-list">
               {Array.from({ length: (schedule.find(v => v.jcd === jcd)?.series_day_num || 1) }, (_, i) => i + 1).map(d => (
                 <button 
@@ -581,7 +572,7 @@ export default function App() {
       {sourceUrls.list && (
         <div className="source-links-bar">
           <MapPin size={14} />
-          <span className="label">取得元URL: </span>
+          <span className="label">取得�EURL: </span>
           <a href={sourceUrls.list} target="_blank" rel="noreferrer">出走表</a>
           <span className="sep">|</span>
           <a href={sourceUrls.before} target="_blank" rel="noreferrer">直前情報</a>
@@ -592,7 +583,7 @@ export default function App() {
         <div className="welcome-card">
           <div className="welcome-icon">🚀</div>
           <h2>会場とレース番号を選択して、「予想開始」を押してください</h2>
-          <p>最新の出走表、展示タイム、選手コメントをリアルタイムに解析します。</p>
+          <p>最新の出走表、展示タイム、E��手コメントをリアルタイムに解析します、E/p>
         </div>
       ) : (
         <main className="dashboard-layout">
@@ -630,7 +621,7 @@ export default function App() {
               ))}
             </div>
           )}
-          {/* 段1: 基本情報 & コメント (2カラム) */}
+          {/* 段1: 基本惁E�� & コメンチE(2カラム) */}
           <div className="info-row">
             <section className="glass-card">
               <h3 style={{ fontWeight: 900, marginBottom: 15, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px', color: '#111111' }}>
@@ -645,7 +636,7 @@ export default function App() {
                   <div>展示</div>
                   <div>1周</div>
                   <div>まわり</div>
-                  <div>直線</div>
+                  <div>直緁E/div>
                 </div>
 
                 <div className="racer-cards-container" style={{ padding: '15px', background: '#f8f9fa', flex: 1 }}>
@@ -656,7 +647,7 @@ export default function App() {
                       </div>
                       <div className="col-name">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '2px' }}>
-                          <div style={{ fontSize: '0.65rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{r.waku}号艇</div>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{r.waku}号艁E/div>
                           {r.rank && (
                             <span className={`rank-badge rank-${r.rank.charAt(0)}`}>
                               {r.rank}
@@ -690,8 +681,7 @@ export default function App() {
 
             <section className="glass-card">
               <h3 style={{ fontWeight: 900, marginBottom: 15, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px', color: '#111111' }}>
-                <TrendingUp size={20} /> 選手コメント
-              </h3>
+                <TrendingUp size={20} /> 選手コメンチE              </h3>
               <div className="comment-table" style={{ flex: 1 }}>
                 {racers.map(r => {
                   const commentText = r.comment || '';
@@ -701,7 +691,7 @@ export default function App() {
                       <div className="comment-text">
                         {commentText ? (
                           commentText.split('前日').map((part, i) => {
-                            const cleanText = part.replace('当日', '').replace(':', '').replace('：', '').trim();
+                            const cleanText = part.replace('当日', '').replace(':', '').replace('�E�E, '').trim();
                             if (!cleanText && i === 1) return null;
                             return (
                               <div key={i} className={i === 0 ? 'c-today' : 'c-yesterday'}>
@@ -711,7 +701,7 @@ export default function App() {
                             );
                           })
                         ) : (
-                          <span style={{ opacity: 0.4 }}>（コメントなし）</span>
+                          <span style={{ opacity: 0.4 }}>�E�コメントなし！E/span>
                         )}
                       </div>
                     </div>
@@ -721,7 +711,7 @@ export default function App() {
             </section>
           </div>
 
-          {/* 段2: 3大指標シミュレーター (横並び) */}
+          {/* 段2: 3大持E��シミュレーター (横並び) */}
           <div className="simulators-row">
             <TimeVisualizer 
               title="展示タイム" 
@@ -747,15 +737,15 @@ export default function App() {
             />
           </div>
 
-          {/* 段3: 総合評価 (全幅) */}
+          {/* 段3: 総合評価 (全幁E */}
           <div className="total-row">
             <TotalVisualizer racers={racers} />
           </div>
 
-          {/* 段4: AI予測 (全幅) */}
+          {/* 段4: AI予測 (全幁E */}
           <div className="predictions-row">
             <section className="glass-card">
-              <h2><Trophy size={24} style={{ marginRight: 10, verticalAlign: 'middle' }} /> AI 着順予測 (最終結論)</h2>
+              <h2><Trophy size={24} style={{ marginRight: 10, verticalAlign: 'middle' }} /> AI 着頁E��測 (最終結諁E</h2>
               <div className="podium-box">
                 {[1, 0, 2].map((idx) => {
                   const p = sortedPredictions[idx];
