@@ -326,7 +326,7 @@ export default function App() {
       <header className="glass-header">
         <div className="logo">
           <div className="icon">潤</div>
-          <h1>BoatRace <span>Cockpit [FINAL]</span></h1>
+          <h1>BoatRace <span>Cockpit [ULTIMATE-AUDIT]</span></h1>
         </div>
         
         {isFetched && racers.length > 0 && (
