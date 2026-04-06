@@ -17,3 +17,5 @@ COPY --from=build-stage /app/web/dist ./web/dist
 ENV PYTHONPATH=/app
 EXPOSE 8000
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+
+RUN echo FORCE_REBUILD_V2_20260407002824
