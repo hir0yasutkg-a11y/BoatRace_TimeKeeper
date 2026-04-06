@@ -1,9 +1,10 @@
 node_modules
 web/node_modules
-.git
-.venv
-__pycache__
-*.db
-dist
 web/dist
+backend/__pycache__
+.git
+.github
+*.log
 .env
+web/.env
+backend/.env
