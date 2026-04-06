@@ -4,7 +4,19 @@ WORKDIR /app/web
 COPY web/package*.json ./
 RUN npm install
 COPY web/ ./
-RUN npm run build
+
+# Debug: show files and try build with verbose error
+RUN echo "=== FILES IN BUILD CONTEXT ===" && \
+    ls -la src/ && \
+    echo "=== NODE VERSION ===" && \
+    node --version && \
+    echo "=== ATTEMPTING BUILD ===" && \
+    npx vite build 2>&1 || \
+    (echo "=== BUILD FAILED - SHOWING DETAILED ERROR ===" && \
+     node -e "import('vite').then(v=>v.build()).catch(e=>{console.error('ERROR TYPE:',e.constructor.name);console.error('MESSAGE:',e.message);if(e.cause)console.error('CAUSE:',e.cause);if(e.errors)e.errors.forEach((x,i)=>console.error('SUB-ERROR',i,':',x));process.exit(1)})" 2>&1 || \
+     echo "=== FALLBACK: trying tsc ===" && \
+     npx tsc --noEmit 2>&1; \
+     exit 1)
 
 # Stage 2: Backend
 FROM python:3.11-slim
