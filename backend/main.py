@@ -210,7 +210,11 @@ if os.path.exists(static_path):
     app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 # 静的ファイルの提供 (Reactビルド用)
+# ローカルとDocker環境でパスが 1 mm 異なるため、両方を索敵
 dist_path = os.path.join(os.path.dirname(__file__), "..", "web", "dist")
+if not os.path.exists(dist_path):
+    dist_path = os.path.join(os.path.dirname(__file__), "web", "dist")
+
 if os.path.exists(dist_path):
     app.mount("/", StaticFiles(directory=dist_path, html=True), name="frontend")
     
