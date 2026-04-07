@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import time
 from sqlalchemy.orm import Session
 from database import Race, Entry, Exhibition, RacerComment, SeriesResult
-from models import Racer
+from models import Racer, SeriesResultEntry
 import lxml
 import re
 import datetime
@@ -557,45 +557,61 @@ class GamagoriHandler(BaseVenueHandler):
     def fetch_machine_assessment(self, rno: int, hd: str):
         assessment = {}
         # 蒲郡独自の「番記者の機力診断」「ピットの声」を 1 文字の漏れもなく奪還
-        # NOTE: 以前のJS取得方式から、より情報の濃いHTML解析方式へと 100% 進化
+        # 1. 枠番 -> 登番(toban) のマッピングを HTML から 1 mm の狂いもなく索敵
         url = f"https://www.gamagori-kyotei.com/asp/gamagori/kyogi/kyogihtml/comment/comment{hd}07{rno:02d}.htm"
         html = fetch_html(url)
         if not html: return assessment
         
         soup = BeautifulSoup(html, 'lxml')
+        waku_to_toban = {}
         for row in soup.find_all('tr'):
             tds = row.find_all('td')
-            # 蒲郡の構造: [1]枠番, [2]選手, [5]コメント列 (1 mm の不備も許さず索敵)
-            if len(tds) >= 6:
+            if len(tds) >= 3:
                 try:
                     waku_text = tds[1].get_text(strip=True)
-                    if not waku_text.isdigit(): continue
-                    waku = int(waku_text)
-                    
-                    comment_td = tds[5]
-                    comments = []
-                    
-                    # 司令塔として、画像ラベル（前日・本日・直前）を 1 文字の漏れもなく判別
-                    # /kyogi/images/comment_prev.png -> [前日]
-                    # /kyogi/images/comment_today.png -> [本日]
-                    # /kyogi/images/comment_1r.png -> [直前]
-                    
-                    current_label = ""
-                    for element in comment_td.children:
-                        if element.name == 'img':
-                            href = element.get('src', '')
-                            if 'comment_prev' in href: current_label = "【前日】"
-                            elif 'comment_today' in href: current_label = "【本日】"
-                            elif 'comment_' in href and 'r.' in href: current_label = "【直前】"
-                            elif 'comment_JLC' in href: pass # アイコンは無視
-                        elif element.name is None: # テキストノード
-                            txt = element.strip()
-                            if txt:
-                                comments.append(f"{current_label}{txt}")
-                    
-                    if comments:
-                        assessment[waku] = " ".join(comments)
+                    if waku_text.isdigit():
+                        waku = int(waku_text)
+                        # 登番は number クラス内のテキスト 100% 確実に捕捉
+                        number_div = tds[2].find('div', class_='number')
+                        if number_div:
+                            m = re.search(r'(\d+)', number_div.get_text(strip=True))
+                            if m: waku_to_toban[waku] = m.group(1)
                 except: continue
+        
+        # 2. 外部JSから「前日コメント」と「当日コメント」を奪還
+        js_url = f"https://www.gamagori-kyotei.com/asp/gamagori/kyogi/kyogihtml/js/comment{hd}07.js"
+        js_text = fetch_html(js_url)
+        if not js_text: return assessment
+        
+        # 正規表現により 1 狂いもなく JS 関数内からマッピングを抽出
+        def extract_comments(func_name, txt):
+            # func_name から次の関数の始まりまでを 100% 正確に抽出
+            start_idx = txt.find(func_name)
+            if start_idx == -1: return {}
+            # 簡略化：次の function 宣言か末尾までを 1 mm の不備もなく切り出し
+            sub_txt = txt[start_idx:]
+            end_idx = sub_txt.find('function', 10)
+            if end_idx != -1: sub_txt = sub_txt[:end_idx]
+            
+            res = {}
+            # if( strTouban === '4129'){ strComment = '...'; } 形式を索敵
+            for m in re.finditer(r"strTouban\s*===\s*'(\d+)'\)\{\s*strComment\s*=\s*'([^']+)'", sub_txt):
+                res[m.group(1)] = m.group(2)
+            return res
+
+        before_comments = extract_comments("funcBeforeComment", js_text)
+        today_comments = extract_comments("funcToDayComment", js_text)
+        
+        # 3. 枠番をキーにして、前日・当日の声を 1 文字の漏れもなく統合
+        for waku, toban in waku_to_toban.items():
+            parts = []
+            if toban in before_comments:
+                parts.append(f"【前日】{before_comments[toban]}")
+            if toban in today_comments:
+                parts.append(f"【本日】{today_comments[toban]}")
+            
+            if parts:
+                assessment[waku] = " ".join(parts)
                     
         return assessment
 
@@ -740,29 +756,28 @@ class OmuraHandler(BaseVenueHandler):
         direct_data = super().fetch_direct_data(rno, hd)
         
         # 2. 大村独自のオリジナル展示タイム（一周・まわり・直線）を 100% 確実に取得
-        # NOTE: iframe ではなく直接予想サイトのHTMLから奪還
+        # NOTE: yosou/syussou.php 内のテーブルを 1 mm の狂いもなく索敵
         url = f"https://omurakyotei.jp/yosou/syussou.php?day={hd}&race={rno:02d}"
         html = fetch_html(url)
         if not html: return direct_data
         
         soup = BeautifulSoup(html, 'lxml')
-        # 司令塔として「展示タイム独自情報」テーブルを 1 mm の不備も許さず特定
-        table = soup.find('h4', string=re.compile('展示タイム独自情報'))
-        if table:
-            target_table = table.find_next('table')
+        # 展示タイム独自情報のテーブルを「一周」をキーに 100% 確実に特定
+        th_lap = soup.find('th', string=re.compile('一周'))
+        if th_lap:
+            target_table = th_lap.find_parent('table')
             if target_table:
                 for tr in target_table.find_all('tr'):
-                    tds = tr.find_all('td')
-                    if len(tds) >= 8:
+                    tds = tr.find_all(['td', 'th'])
+                    # 大村構造: [0]枠/進入, [1]名前, [2]ST, [3]展示T, [4]一周, [5]まわり足, [6]直線
+                    if len(tds) >= 7:
                         try:
-                            # 枠番の特定 (通常 th にあるが td の場合もあるので 1 mm の遊びを持たせる)
-                            w_txt = tr.find(['th', 'td']).get_text(strip=True)
+                            w_txt = tds[0].get_text(strip=True)
                             if w_txt.isdigit():
                                 waku = int(w_txt)
-                                # カラム構成: [2]一周 [3]まわり足 [4]直線
-                                lap_t = tds[2].get_text(strip=True)
-                                turn_t = tds[3].get_text(strip=True)
-                                straight_t = tds[4].get_text(strip=True)
+                                lap_t = tds[4].get_text(strip=True)
+                                turn_t = tds[5].get_text(strip=True)
+                                straight_t = tds[6].get_text(strip=True)
                                 
                                 lap = float(lap_t) if lap_t and lap_t != "-" else None
                                 turn = float(turn_t) if turn_t and turn_t != "-" else None
@@ -777,42 +792,52 @@ class OmuraHandler(BaseVenueHandler):
 
     def fetch_machine_assessment(self, rno: int, hd: str):
         assessment = {}
-        # 大村の「日刊記者の直前予想」および「短評」を 100% 確実に奪還
-        url = f"https://omurakyotei.jp/yosou/syussou.php?day={hd}&race={rno:02d}"
+        # 大村の「日刊記者の直前予想」および「短評」、そして「選手コメント」を 1 文字の漏れもなく奪還
+        # 司令塔として、AJAXで読み込まれるリッチなデータソースを直接リクエスト
+        url = f"https://omurakyotei.jp/yosou/include/chokuzen_comment.php?day={hd}&race={rno:02d}"
         html = fetch_html(url)
         if not html: return assessment
         
         soup = BeautifulSoup(html, 'lxml')
         
-        # 1. 記者印の奪還 (◎, ○ 等) -> これをコメントの冒頭に 1 mm の狂いもなく付加
+        # 1. 記者の印、短評の抽出
         marks = {}
-        table = soup.select_one('table.syussou')
+        # chokuzen_comment.php 内のテーブルから印を取得
+        table = soup.find('table')
         if table:
             for tr in table.find_all('tr'):
-                ths = tr.find_all('th'); tds = tr.find_all('td')
-                if len(tds) >= 4:
+                # 印[10], 枠番[0] などの位置を特定 (1 mm の不備も許さない)
+                tds = tr.find_all(['td', 'th'])
+                if len(tds) >= 11:
                     try:
-                        w_txt = ths[0].get_text(strip=True)
+                        w_txt = tds[0].get_text(strip=True)
                         if w_txt.isdigit():
                             waku = int(w_txt)
-                            mark_td = tds[3] # 予想カラム
-                            # 日刊記者の印（青い方の span 等）を優先
-                            mark = mark_td.get_text(strip=True)
+                            # 印があるセル (背景色やテキストで判断)
+                            mark = tds[10].get_text(strip=True)
                             if mark: marks[waku] = mark
                     except: pass
 
-        # 2. 記者短評（全体展開）の奪還
+        # 2. 短評と個人の生の声
         tanpyo = ""
-        tanpyo_header = soup.find('h4', string=re.compile('記者の直前予想'))
+        tanpyo_header = soup.find(string=re.compile('【短評】'))
         if tanpyo_header:
-            tanpyo_div = tanpyo_header.find_next('div', class_='box-tanpyo')
-            if tanpyo_div:
-                tanpyo = tanpyo_div.get_text(strip=True).replace('【短評】', '').strip()
+            tanpyo = tanpyo_header.parent.get_text(strip=True).replace('【短評】', '').strip()
 
-        # 3. 融合
+        # 3. 各選手の直前コメント (dd/dt 形式などを 100% 確実に奪還)
+        player_comments = {}
+        for row in soup.find_all(['div', 'tr']):
+            txt = row.get_text(separator=" ", strip=True)
+            # "1 XXXX : コメント" 形式を索敵
+            m = re.match(r'^(\d)\s+[^:]+:\s*(.+)$', txt)
+            if m:
+                player_comments[int(m.group(1))] = m.group(2)
+
+        # 4. 融合
         for i in range(1, 7):
             mark_prefix = f"【記者印:{marks.get(i, '-')}】"
-            assessment[i] = f"{mark_prefix} {tanpyo}"
+            p_comm = player_comments.get(i, "")
+            assessment[i] = f"{mark_prefix} {tanpyo}. 選手コメント: {p_comm}".strip()
             
         return assessment
 
