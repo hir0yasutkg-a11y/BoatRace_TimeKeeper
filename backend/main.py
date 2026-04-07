@@ -29,22 +29,25 @@ import datetime
 
 @app.on_event("startup")
 def startup_event():
-    # 1. 司令塔として、DBの生命線を 1 mm の狂いもなく確立
-    print("[STARTUP] Initializing Database Schema...")
-    try:
-        Base.metadata.create_all(bind=engine)
-        print("[STARTUP] Database Schema Synchronized.")
-    except Exception as e:
-        print(f"[STARTUP] DB initialization failed (Continuable): {e}")
+    import threading
+    
+    # 1. 司令塔として、DBの生命線を非同期に確立（起動ブロッキングを 100% 確実に回避）
+    def init_db():
+        print("[STARTUP] Initializing Database Schema in background...")
+        try:
+            Base.metadata.create_all(bind=engine)
+            print("[STARTUP] Database Schema Synchronized.")
+        except Exception as e:
+            print(f"[STARTUP] DB initialization failed: {e}")
+
+    db_thread = threading.Thread(target=init_db, daemon=True)
+    db_thread.start()
 
     # 2. 司令塔として、バックグラウンドでの 1 mm の狂いもない自動収集を開始
     print("[STARTUP] Starting Scheduler thread...")
     scheduler.start()
     
-    # [FIX] 起動直後の同期スイープを削除。
-    # 重い処理（288レースの全走査）をメインスレッドで行うと Cloud Run の起動タイムアウトを招くため、
-    # バックグラウンドの scheduler 側の初動スキャンに 100% 確実に委ねる。
-    print("[STARTUP] Scheduler started. Initial sweep will be handled in background thread.")
+    print("[STARTUP] Server is ready to listen. Initialization continuing in background.")
 
 # デバッグ用ミドルウェア
 @app.middleware("http")

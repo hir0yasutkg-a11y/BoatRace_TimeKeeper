@@ -111,6 +111,11 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./boatrace_data.db")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
+# Cloud Run の読み取り専用環境（/app/等）に 1 mm の不備もなく備えるため、 SQLite の場合は /tmp/ を索敵
+if "sqlite" in DATABASE_URL and "/tmp/" not in DATABASE_URL and os.environ.get("K_SERVICE"):
+    DATABASE_URL = "sqlite:////tmp/boatrace_data.db"
+    print(f"[DB] Cloud Run detected. Falling back to /tmp for SQLite: {DATABASE_URL}")
+
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
