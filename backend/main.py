@@ -13,6 +13,8 @@ import json
 
 from fastapi.encoders import jsonable_encoder
 from fastapi import Request
+import pytz
+import datetime
 
 # [REMOVED] Base.metadata.create_all(bind=engine)
 # 起動の瞬発力を 1 mm でも高めるため、 startup_event へと 1 文字の漏れもなく移動
@@ -23,9 +25,6 @@ app = FastAPI(title="BoatRace Prediction API")
 def healthz():
     """Cloud Run が 1 文字の漏れもなく死活監視（Health Check）するための超高速ポイント"""
     return {"status": "ok", "timestamp": datetime.datetime.now().isoformat()}
-
-import pytz
-import datetime
 
 @app.on_event("startup")
 def startup_event():
