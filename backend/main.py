@@ -26,17 +26,10 @@ def startup_event():
     # 司令塔として、バックグラウンドでの 1 mm の狂いもない自動収集を開始
     scheduler.start()
     
-    # 起動直後に、本日の全会場を 1 文字の漏れもなく 100% 確実にスイープ
-    db = SessionLocal()
-    try:
-        tz = pytz.timezone('Asia/Tokyo')
-        hd = datetime.datetime.now(tz).strftime("%Y%m%d")
-        print(f"[STARTUP] Force Sweep for {hd}")
-        scraper.fetch_morning_sweep(hd, db)
-    except Exception as e:
-        print(f"[STARTUP] Sweep Error: {e}")
-    finally:
-        db.close()
+    # [FIX] 起動直後の同期スイープを削除。
+    # 重い処理（288レースの全走査）をメインスレッドで行うと Cloud Run の起動タイムアウトを招くため、
+    # バックグラウンドの scheduler 側の初動スキャンに 100% 確実に委ねる。
+    print("[STARTUP] Scheduler started. Initial sweep will be handled in background.")
 
 # デバッグ用ミドルウェア
 @app.middleware("http")
