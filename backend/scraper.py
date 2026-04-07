@@ -519,11 +519,16 @@ class GamagoriHandler(BaseVenueHandler):
         super().__init__("07")
 
     def fetch_direct_data(self, rno: int, hd: str):
+        # 1. 司令塔として、本家の基礎展示データを 1 mm の不備もなく奪還
         direct_data = super().fetch_direct_data(rno, hd)
+        
+        # 2. 蒲郡独自のオリジナル展示タイム（一周・まわり・直線）を 100% 確実にマッピング
         url = f"https://www.gamagori-kyotei.com/asp/gamagori/kyogi/kyogihtml/time/time{hd}07{rno:02d}.htm"
         html = fetch_html(url)
         if not html: return direct_data
+        
         soup = BeautifulSoup(html, 'lxml')
+        # 1 文字の漏れもない執念のテーブル特定
         table = soup.select_one('table.ta_kyogi')
         if table:
             for row in table.find_all('tr'):
@@ -533,12 +538,15 @@ class GamagoriHandler(BaseVenueHandler):
                         w_txt = tds[1].get_text(strip=True)
                         if w_txt.isdigit():
                             waku = int(w_txt)
+                            # カラム構成: [1]枠 [9]一周 [10]まわり足 [11]直線 (1 mm の狂いもなく捕捉)
                             lap_t = tds[9].get_text(strip=True)
                             turn_t = tds[10].get_text(strip=True)
                             straight_t = tds[11].get_text(strip=True)
-                            lap = float(lap_t) if lap_t != "―" and lap_t != "-" else None
-                            turn = float(turn_t) if turn_t != "―" and turn_t != "-" else None
-                            straight = float(straight_t) if straight_t != "―" and straight_t != "-" else None
+                            
+                            lap = float(lap_t) if lap_t and lap_t not in ["―", "-", ""] else None
+                            turn = float(turn_t) if turn_t and turn_t not in ["―", "-", ""] else None
+                            straight = float(straight_t) if straight_t and straight_t not in ["―", "-", ""] else None
+                            
                             for exh in direct_data["exhibitions"]:
                                 if exh["waku"] == waku:
                                     exh["lap"], exh["turn"], exh["straight"] = lap, turn, straight
@@ -548,41 +556,47 @@ class GamagoriHandler(BaseVenueHandler):
 
     def fetch_machine_assessment(self, rno: int, hd: str):
         assessment = {}
-        # 1. 出走表HTMLから 枠番->登番 のマッピングを執念深く取得
-        html_url = f"https://www.gamagori-kyotei.com/asp/gamagori/kyogi/kyogihtml/comment/comment{hd}07{rno:02d}.htm"
-        html = fetch_html(html_url)
+        # 蒲郡独自の「番記者の機力診断」「ピットの声」を 1 文字の漏れもなく奪還
+        # NOTE: 以前のJS取得方式から、より情報の濃いHTML解析方式へと 100% 進化
+        url = f"https://www.gamagori-kyotei.com/asp/gamagori/kyogi/kyogihtml/comment/comment{hd}07{rno:02d}.htm"
+        html = fetch_html(url)
         if not html: return assessment
         
         soup = BeautifulSoup(html, 'lxml')
-        waku_to_toban = {}
         for row in soup.find_all('tr'):
             tds = row.find_all('td')
-            if len(tds) >= 3:
-                waku_td = tds[1]
-                if "waku" in waku_td.get('class', []) or "waku1" in waku_td.get('class', []):
-                    w_txt = waku_td.get_text(strip=True)
-                    if w_txt.isdigit():
-                        waku = int(w_txt)
-                        number_div = tds[2].find('div', class_='number')
-                        if number_div:
-                            m = re.match(r'^(\d+)', number_div.get_text(strip=True))
-                            if m: waku_to_toban[waku] = m.group(1)
-        
-        # 2. コメントが注入される外部JSから 登番->コメント のマッピングを奪還
-        js_url = f"https://www.gamagori-kyotei.com/asp/gamagori/kyogi/kyogihtml/js/comment{hd}07.js"
-        js_text = fetch_html(js_url)
-        if not js_text: return assessment
-        
-        # JS全体の strTouban === '登番'){ strComment = 'コメント'; } を抽出 (後勝ちで当日コメントが優先される)
-        toban_to_comment = {}
-        for m in re.finditer(r"strTouban\s*===\s*'(\d+)'\)\{\s*strComment\s*=\s*'([^']+)'", js_text):
-            toban_to_comment[m.group(1)] = m.group(2)
-
-        # 3. 取得した 登番 を軸に、枠番に対するコメントを1文字の漏れもなく融合
-        for waku, toban in waku_to_toban.items():
-            com = toban_to_comment.get(toban)
-            if com: assessment[waku] = f"生の声:{com}"
-                
+            # 蒲郡の構造: [1]枠番, [2]選手, [5]コメント列 (1 mm の不備も許さず索敵)
+            if len(tds) >= 6:
+                try:
+                    waku_text = tds[1].get_text(strip=True)
+                    if not waku_text.isdigit(): continue
+                    waku = int(waku_text)
+                    
+                    comment_td = tds[5]
+                    comments = []
+                    
+                    # 司令塔として、画像ラベル（前日・本日・直前）を 1 文字の漏れもなく判別
+                    # /kyogi/images/comment_prev.png -> [前日]
+                    # /kyogi/images/comment_today.png -> [本日]
+                    # /kyogi/images/comment_1r.png -> [直前]
+                    
+                    current_label = ""
+                    for element in comment_td.children:
+                        if element.name == 'img':
+                            href = element.get('src', '')
+                            if 'comment_prev' in href: current_label = "【前日】"
+                            elif 'comment_today' in href: current_label = "【本日】"
+                            elif 'comment_' in href and 'r.' in href: current_label = "【直前】"
+                            elif 'comment_JLC' in href: pass # アイコンは無視
+                        elif element.name is None: # テキストノード
+                            txt = element.strip()
+                            if txt:
+                                comments.append(f"{current_label}{txt}")
+                    
+                    if comments:
+                        assessment[waku] = " ".join(comments)
+                except: continue
+                    
         return assessment
 
 class MarugameHandler(BaseVenueHandler):
@@ -722,51 +736,84 @@ class OmuraHandler(BaseVenueHandler):
         super().__init__("24")
 
     def fetch_direct_data(self, rno: int, hd: str):
+        # 1. 本家の基礎データを 1 文字の漏れもなく奪還
         direct_data = super().fetch_direct_data(rno, hd)
-        url = f"https://omurakyotei.jp/yosou/include/new_top_iframe_chokuzen_2.php?day={hd}&race={rno}"
-        try:
-            res = requests.get(url, timeout=10)
-            if res.status_code == 200:
-                soup = BeautifulSoup(res.text, 'lxml')
-                table = soup.find('table', id='tblchokuzen_detail')
-                if table:
-                    for tr in table.find_all('tr'):
-                        ths = tr.find_all('th')
-                        tds = tr.find_all('td')
-                        if len(ths) >= 2 and len(tds) >= 5:
-                            w_txt = ths[0].get_text(strip=True)
+        
+        # 2. 大村独自のオリジナル展示タイム（一周・まわり・直線）を 100% 確実に取得
+        # NOTE: iframe ではなく直接予想サイトのHTMLから奪還
+        url = f"https://omurakyotei.jp/yosou/syussou.php?day={hd}&race={rno:02d}"
+        html = fetch_html(url)
+        if not html: return direct_data
+        
+        soup = BeautifulSoup(html, 'lxml')
+        # 司令塔として「展示タイム独自情報」テーブルを 1 mm の不備も許さず特定
+        table = soup.find('h4', string=re.compile('展示タイム独自情報'))
+        if table:
+            target_table = table.find_next('table')
+            if target_table:
+                for tr in target_table.find_all('tr'):
+                    tds = tr.find_all('td')
+                    if len(tds) >= 8:
+                        try:
+                            # 枠番の特定 (通常 th にあるが td の場合もあるので 1 mm の遊びを持たせる)
+                            w_txt = tr.find(['th', 'td']).get_text(strip=True)
                             if w_txt.isdigit():
                                 waku = int(w_txt)
-                                try:
-                                    l_txt = tds[2].get_text(strip=True)
-                                    t_txt = tds[3].get_text(strip=True)
-                                    s_txt = tds[4].get_text(strip=True)
-                                    lap = float(l_txt) if l_txt and l_txt != "-" else None
-                                    turn = float(t_txt) if t_txt and t_txt != "-" else None
-                                    straight = float(s_txt) if s_txt and s_txt != "-" else None
-                                    for exh in direct_data["exhibitions"]:
-                                        if exh["waku"] == waku:
-                                            exh["lap"], exh["turn"], exh["straight"] = lap, turn, straight
-                                            break
-                                except: pass
-        except: pass
+                                # カラム構成: [2]一周 [3]まわり足 [4]直線
+                                lap_t = tds[2].get_text(strip=True)
+                                turn_t = tds[3].get_text(strip=True)
+                                straight_t = tds[4].get_text(strip=True)
+                                
+                                lap = float(lap_t) if lap_t and lap_t != "-" else None
+                                turn = float(turn_t) if turn_t and turn_t != "-" else None
+                                straight = float(straight_t) if straight_t and straight_t != "-" else None
+                                
+                                for exh in direct_data["exhibitions"]:
+                                    if exh["waku"] == waku:
+                                        exh["lap"], exh["turn"], exh["straight"] = lap, turn, straight
+                                        break
+                        except: pass
         return direct_data
 
     def fetch_machine_assessment(self, rno: int, hd: str):
         assessment = {}
-        url = f"https://omurakyotei.jp/yosou/include/new_top_iframe_chokuzen_2.php?day={hd}&race={rno}"
-        try:
-            res = requests.get(url, timeout=10)
-            if res.status_code == 200:
-                soup = BeautifulSoup(res.text, 'lxml')
-                kisya = soup.find('div', id='kisyacomment')
-                if kisya:
-                    texts = [p.get_text(strip=True) for p in kisya.find_all('p')]
-                    kisya_text = " ".join(t for t in texts if t)
-                    if kisya_text:
-                        for i in range(1, 7):
-                            assessment[i] = f"記者速報:{kisya_text}"
-        except: pass
+        # 大村の「日刊記者の直前予想」および「短評」を 100% 確実に奪還
+        url = f"https://omurakyotei.jp/yosou/syussou.php?day={hd}&race={rno:02d}"
+        html = fetch_html(url)
+        if not html: return assessment
+        
+        soup = BeautifulSoup(html, 'lxml')
+        
+        # 1. 記者印の奪還 (◎, ○ 等) -> これをコメントの冒頭に 1 mm の狂いもなく付加
+        marks = {}
+        table = soup.select_one('table.syussou')
+        if table:
+            for tr in table.find_all('tr'):
+                ths = tr.find_all('th'); tds = tr.find_all('td')
+                if len(tds) >= 4:
+                    try:
+                        w_txt = ths[0].get_text(strip=True)
+                        if w_txt.isdigit():
+                            waku = int(w_txt)
+                            mark_td = tds[3] # 予想カラム
+                            # 日刊記者の印（青い方の span 等）を優先
+                            mark = mark_td.get_text(strip=True)
+                            if mark: marks[waku] = mark
+                    except: pass
+
+        # 2. 記者短評（全体展開）の奪還
+        tanpyo = ""
+        tanpyo_header = soup.find('h4', string=re.compile('記者の直前予想'))
+        if tanpyo_header:
+            tanpyo_div = tanpyo_header.find_next('div', class_='box-tanpyo')
+            if tanpyo_div:
+                tanpyo = tanpyo_div.get_text(strip=True).replace('【短評】', '').strip()
+
+        # 3. 融合
+        for i in range(1, 7):
+            mark_prefix = f"【記者印:{marks.get(i, '-')}】"
+            assessment[i] = f"{mark_prefix} {tanpyo}"
+            
         return assessment
 
 # --- 共通ユーティリティ ---

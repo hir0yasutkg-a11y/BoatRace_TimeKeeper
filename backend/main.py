@@ -96,7 +96,18 @@ def get_prediction(hd: str, jcd: str, rno: int, db: Session = Depends(get_db)):
     is_mock = False
 
     if not racers:
-        # 失敗時はモック（開発用）
+        # 今日のレースかつデータ未取得の場合は、1文字の漏れもなく「取得中」として空リストを返す
+        import datetime
+        today_str = datetime.datetime.now(pytz.timezone('Asia/Tokyo')).strftime("%Y%m%d")
+        if hd >= today_str:
+            return jsonable_encoder({
+                "hd": hd, "jcd": jcd, "rno": rno,
+                "scheduled_start": s_start,
+                "racers": [], "predictions": [], "is_mock": False,
+                "rough_alerts": [{"type": "LOADING", "message": "📡 現在データを索敵・集中解析中... しばらくお待ちください"}]
+            })
+
+        # 過去データのみ、司令塔としてモック（開発用）を注入
         seed_val = int(jcd) * 100 + int(rno)
         venue_map = {"01": "桐生", "02": "戸田", "03": "江戸川", "04": "平和島", "12": "住之江", "15": "丸亀", "24": "大村"}
         v_name = venue_map.get(jcd, f"会場{jcd}")
@@ -108,7 +119,6 @@ def get_prediction(hd: str, jcd: str, rno: int, db: Session = Depends(get_db)):
         racers = []
         for i in range(1, 7):
             name_suffix = rng.choice(["選手", "プロ", "スター", "エース"])
-            # ここで Racer (Pydanticモデル) を 1 文字の漏れもなく使用
             racers.append(Racer(
                 waku=i, 
                 name=f"{v_name} {names_base[i-1]}{name_suffix}", 
