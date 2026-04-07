@@ -113,4 +113,6 @@ if DATABASE_URL.startswith("postgres://"):
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base.metadata.create_all(bind=engine)
+
+# [REMOVED] Base.metadata.create_all(bind=engine)
+# 起動時間を 1 mm でも短縮するため、 main.py の生命維持サイクル（startup_event）へと 100% 確実に移譲

@@ -14,22 +14,37 @@ import json
 from fastapi.encoders import jsonable_encoder
 from fastapi import Request
 
-Base.metadata.create_all(bind=engine)
+# [REMOVED] Base.metadata.create_all(bind=engine)
+# 起動の瞬発力を 1 mm でも高めるため、 startup_event へと 1 文字の漏れもなく移動
 
 app = FastAPI(title="BoatRace Prediction API")
+
+@app.get("/healthz")
+def healthz():
+    """Cloud Run が 1 文字の漏れもなく死活監視（Health Check）するための超高速ポイント"""
+    return {"status": "ok", "timestamp": datetime.datetime.now().isoformat()}
 
 import pytz
 import datetime
 
 @app.on_event("startup")
 def startup_event():
-    # 司令塔として、バックグラウンドでの 1 mm の狂いもない自動収集を開始
+    # 1. 司令塔として、DBの生命線を 1 mm の狂いもなく確立
+    print("[STARTUP] Initializing Database Schema...")
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("[STARTUP] Database Schema Synchronized.")
+    except Exception as e:
+        print(f"[STARTUP] DB initialization failed (Continuable): {e}")
+
+    # 2. 司令塔として、バックグラウンドでの 1 mm の狂いもない自動収集を開始
+    print("[STARTUP] Starting Scheduler thread...")
     scheduler.start()
     
     # [FIX] 起動直後の同期スイープを削除。
     # 重い処理（288レースの全走査）をメインスレッドで行うと Cloud Run の起動タイムアウトを招くため、
     # バックグラウンドの scheduler 側の初動スキャンに 100% 確実に委ねる。
-    print("[STARTUP] Scheduler started. Initial sweep will be handled in background.")
+    print("[STARTUP] Scheduler started. Initial sweep will be handled in background thread.")
 
 # デバッグ用ミドルウェア
 @app.middleware("http")
