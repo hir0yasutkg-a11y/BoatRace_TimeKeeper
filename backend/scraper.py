@@ -1092,7 +1092,10 @@ def run_background_scraping_cycle(db: Session):
                     if r.status != "Cancelled": r.status = "Cancelled"
                 db.commit(); continue
             
-            if v['status'] == "終了": continue
+            # 司令塔として「終了」会場であっても、全 12 レースの 1 文字の漏れもない支配が完了するまで徹底抗戦
+            if v['status'] == "終了":
+                all_done = all(r.status == "Completed" for r in db_races)
+                if all_done and len(db_races) == 12: continue
             
             # 最新の締切時刻を 1 文字の漏れもなく 100% 確実に 司令部（DB）へと反映
             n_rno = v['next_race']; c_dline = v['deadline']
@@ -1106,7 +1109,15 @@ def run_background_scraping_cycle(db: Session):
 
             # 3. 精密詳細索敵: 締切 15 分前となった 100% 確かな瞬点のみを 1 文字の漏れもなく狙い撃ち
             for race in sorted(db_races, key=lambda x: x.rno):
-                if race.status not in ["Before", "Scheduled", "Exhibition"]: continue
+                # 司令塔として、データが 1 mm でも欠落していれば、ステータスに関わらず索敵対象とする
+                eid_b = f"{hd}_{jcd}_{race.rno}"
+                entry_count = db.query(Entry).filter(Entry.race_id == eid_b).count()
+                
+                # 展示情報、または 1 文字の漏れもなく基礎出走表が欠落している場合に 100% 確実に検知
+                exhs = db.query(Exhibition).filter(Exhibition.race_id == eid_b).all()
+                is_inc = (len(exhs) < 6) or (entry_count < 6)
+
+                if (not is_inc) and race.status not in ["Before", "Scheduled", "Exhibition"]: continue
                 dline_s = race.scheduled_start
                 if not dline_s: continue
                 
