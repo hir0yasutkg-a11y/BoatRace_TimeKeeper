@@ -520,11 +520,11 @@ class GamagoriHandler(BaseVenueHandler):
 
     def fetch_direct_data(self, rno: int, hd: str):
         direct_data = super().fetch_direct_data(rno, hd)
-        url = f"https://www.gamagori-kyotei.com/asp/gamagori/kyogi/kyogihtml/index.htm?page=staten&racenum={rno}"
+        url = f"https://www.gamagori-kyotei.com/asp/gamagori/kyogi/kyogihtml/time/time{hd}07{rno:02d}.htm"
         html = fetch_html(url)
         if not html: return direct_data
         soup = BeautifulSoup(html, 'lxml')
-        table = soup.select_one('table.table_style01')
+        table = soup.select_one('table.ta_kyogi')
         if table:
             for row in table.find_all('tr'):
                 tds = row.find_all('td')
@@ -533,9 +533,12 @@ class GamagoriHandler(BaseVenueHandler):
                         w_txt = tds[1].get_text(strip=True)
                         if w_txt.isdigit():
                             waku = int(w_txt)
-                            lap = float(tds[9].get_text(strip=True)) if tds[9].get_text(strip=True) != "-" else None
-                            turn = float(tds[10].get_text(strip=True)) if tds[10].get_text(strip=True) != "-" else None
-                            straight = float(tds[11].get_text(strip=True)) if tds[11].get_text(strip=True) != "-" else None
+                            lap_t = tds[9].get_text(strip=True)
+                            turn_t = tds[10].get_text(strip=True)
+                            straight_t = tds[11].get_text(strip=True)
+                            lap = float(lap_t) if lap_t != "―" and lap_t != "-" else None
+                            turn = float(turn_t) if turn_t != "―" and turn_t != "-" else None
+                            straight = float(straight_t) if straight_t != "―" and straight_t != "-" else None
                             for exh in direct_data["exhibitions"]:
                                 if exh["waku"] == waku:
                                     exh["lap"], exh["turn"], exh["straight"] = lap, turn, straight
@@ -544,21 +547,50 @@ class GamagoriHandler(BaseVenueHandler):
         return direct_data
 
     def fetch_machine_assessment(self, rno: int, hd: str):
-        url = f"https://www.gamagori-kyotei.com/asp/gamagori/kyogi/kyogihtml/index.htm?page=staten&racenum={rno}"
-        html = fetch_html(url)
-        if not html: return {}
-        soup = BeautifulSoup(html, 'lxml')
         assessment = {}
-        table = soup.select_one('table.table_style01')
-        if table:
-            for row in table.find_all('tr'):
-                tds = row.find_all('td')
-                if len(tds) >= 12:
-                    try:
-                        waku = int(tds[1].get_text(strip=True))
-                        de = tds[5].get_text(strip=True); nobi = tds[6].get_text(strip=True); mawari = tds[7].get_text(strip=True)
-                        assessment[waku] = f"出:{de}/伸:{nobi}/回:{mawari}"
-                    except: pass
+        # 1. 出走表HTMLから 枠番->登番 のマッピングを執念深く取得
+        html_url = f"https://www.gamagori-kyotei.com/asp/gamagori/kyogi/kyogihtml/comment/comment{hd}07{rno:02d}.htm"
+        html = fetch_html(html_url)
+        if not html: return assessment
+        
+        soup = BeautifulSoup(html, 'lxml')
+        waku_to_toban = {}
+        for row in soup.find_all('tr'):
+            tds = row.find_all('td')
+            if len(tds) >= 3:
+                waku_td = tds[1]
+                if "waku" in waku_td.get('class', []) or "waku1" in waku_td.get('class', []):
+                    w_txt = waku_td.get_text(strip=True)
+                    if w_txt.isdigit():
+                        waku = int(w_txt)
+                        number_div = tds[2].find('div', class_='number')
+                        if number_div:
+                            m = re.match(r'^(\d+)', number_div.get_text(strip=True))
+                            if m: waku_to_toban[waku] = m.group(1)
+        
+        # 2. コメントが注入される外部JSから 登番->コメント のマッピングを奪還
+        js_url = f"https://www.gamagori-kyotei.com/asp/gamagori/kyogi/kyogihtml/js/comment{hd}07.js"
+        js_text = fetch_html(js_url)
+        if not js_text: return assessment
+        
+        def _extract(func_name, text):
+            block_m = re.search(f'function {func_name}.*?{{(.*?)}}', text, re.DOTALL)
+            res = {}
+            if block_m:
+                block = block_m.group(1)
+                for m in re.finditer(r"strTouban\s*===\s*'(\d+)'\)\{\s*strComment\s*=\s*'([^']+)'", block):
+                    res[m.group(1)] = m.group(2)
+            return res
+
+        before = _extract('funcBeforeComment', js_text)
+        today = _extract('funcToDayComment', js_text)
+
+        # 3. 取得した 登番 を軸に、枠番に対するコメントを1文字の漏れもなく融合
+        for waku, toban in waku_to_toban.items():
+            com = today.get(toban)
+            if not com: com = before.get(toban)
+            if com: assessment[waku] = f"生の声:{com}"
+                
         return assessment
 
 class MarugameHandler(BaseVenueHandler):
@@ -693,6 +725,60 @@ class AshiyaHandler(BaseVenueHandler):
                     except: continue
         return assessment
 
+class OmuraHandler(BaseVenueHandler):
+    def __init__(self):
+        super().__init__("24")
+
+    def fetch_direct_data(self, rno: int, hd: str):
+        direct_data = super().fetch_direct_data(rno, hd)
+        url = f"https://omurakyotei.jp/include2/iframe_live.php?dspkbn=chokuzen&liveday={hd}&liverace={rno}&ajaxaccess"
+        try:
+            res = requests.get(url, timeout=10)
+            if res.status_code == 200:
+                res.encoding = 'shift_jis'
+                soup = BeautifulSoup(res.text, 'lxml')
+                table = soup.find('table', id='tblchokuzen_detail')
+                if table:
+                    for tr in table.find_all('tr'):
+                        ths = tr.find_all('th')
+                        tds = tr.find_all('td')
+                        if len(ths) >= 2 and len(tds) >= 5:
+                            w_txt = ths[0].get_text(strip=True)
+                            if w_txt.isdigit():
+                                waku = int(w_txt)
+                                try:
+                                    l_txt = tds[2].get_text(strip=True)
+                                    t_txt = tds[3].get_text(strip=True)
+                                    s_txt = tds[4].get_text(strip=True)
+                                    lap = float(l_txt) if l_txt and l_txt != "-" else None
+                                    turn = float(t_txt) if t_txt and t_txt != "-" else None
+                                    straight = float(s_txt) if s_txt and s_txt != "-" else None
+                                    for exh in direct_data["exhibitions"]:
+                                        if exh["waku"] == waku:
+                                            exh["lap"], exh["turn"], exh["straight"] = lap, turn, straight
+                                            break
+                                except: pass
+        except: pass
+        return direct_data
+
+    def fetch_machine_assessment(self, rno: int, hd: str):
+        assessment = {}
+        url = f"https://omurakyotei.jp/include2/iframe_live.php?dspkbn=chokuzen&liveday={hd}&liverace={rno}&ajaxaccess"
+        try:
+            res = requests.get(url, timeout=10)
+            if res.status_code == 200:
+                res.encoding = 'shift_jis'
+                soup = BeautifulSoup(res.text, 'lxml')
+                kisya = soup.find('div', id='kisyacomment')
+                if kisya:
+                    texts = [p.get_text(strip=True) for p in kisya.find_all('p')]
+                    kisya_text = " ".join(t for t in texts if t)
+                    if kisya_text:
+                        for i in range(1, 7):
+                            assessment[i] = f"記者速報:{kisya_text}"
+        except: pass
+        return assessment
+
 # --- 共通ユーティリティ ---
 
 def fetch_html(url: str):
@@ -745,6 +831,7 @@ def scrape_and_store_race_info(hd: str, jcd: str, rno: int, db: Session):
     elif jcd == "18": handler = TokuyamaHandler()
     elif jcd == "21": handler = AshiyaHandler()
     elif jcd == "22": handler = FukuokaHandler()
+    elif jcd == "24": handler = OmuraHandler()
     else: handler = BaseVenueHandler(jcd)
     
     direct_data = handler.fetch_direct_data(rno, hd)
