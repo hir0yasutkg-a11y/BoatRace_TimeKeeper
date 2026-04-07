@@ -1109,15 +1109,16 @@ def run_background_scraping_cycle(db: Session):
 
             # 3. 精密詳細索敵: 締切 15 分前となった 100% 確かな瞬点のみを 1 文字の漏れもなく狙い撃ち
             for race in sorted(db_races, key=lambda x: x.rno):
-                # 司令塔として、データが 1 mm でも欠落していれば、ステータスに関わらず索敵対象とする
                 eid_b = f"{hd}_{jcd}_{race.rno}"
                 entry_count = db.query(Entry).filter(Entry.race_id == eid_b).count()
+                exhs_count = db.query(Exhibition).filter(Exhibition.race_id == eid_b).count()
                 
-                # 展示情報、または 1 文字の漏れもなく基礎出走表が欠落している場合に 100% 確実に検知
-                exhs = db.query(Exhibition).filter(Exhibition.race_id == eid_b).all()
-                is_inc = (len(exhs) < 6) or (entry_count < 6)
+                # 司令塔として、出走表（Entry）または 展示（Exhibition）が 6 人分揃っていない場合に欠落と判定
+                is_inc = (entry_count < 6) or (exhs_count < 6)
 
+                # 欠落していない、かつ 締切前のフェーズでもない場合は 1 mm の無駄も省くためスキップ
                 if (not is_inc) and race.status not in ["Before", "Scheduled", "Exhibition"]: continue
+                
                 dline_s = race.scheduled_start
                 if not dline_s: continue
                 
@@ -1125,13 +1126,9 @@ def run_background_scraping_cycle(db: Session):
                 try:
                     h, m = map(int, dline_s.split(":"))
                     dline_dt = now_jst.replace(hour=h, minute=m, second=0, microsecond=0)
-                    # 最新締切の 15 分前以内、且つ 司令塔としての作戦中であれば 1 文字の漏れもなく実行
+                    # 最新締切の 15 分前以内であれば、司令塔として 1 文字の漏れもなく索敵を開始
                     if 0 <= (dline_dt - now_jst).total_seconds() / 60 <= 15: is_near = True
                 except: pass
-                
-                eid_b = f"{hd}_{jcd}_{race.rno}"
-                exhs = db.query(Exhibition).filter(Exhibition.race_id == eid_b).all()
-                is_inc = len(exhs) < 6 # 司令塔としてデータの 1 mm の不足を 100% 確実に検知
                 
                 if is_near or is_inc:
                     scrape_and_store_race_info(hd, jcd, race.rno, db)
