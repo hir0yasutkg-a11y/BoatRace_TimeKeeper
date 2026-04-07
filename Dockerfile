@@ -9,6 +9,9 @@ RUN npm run build
 # Stage 2: Backend
 FROM python:3.11-slim
 WORKDIR /app
+ENV TZ=Asia/Tokyo
+RUN apt-get update && apt-get install -y tzdata && \
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./

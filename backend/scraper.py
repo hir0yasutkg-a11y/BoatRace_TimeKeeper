@@ -8,6 +8,7 @@ import lxml
 import re
 import datetime
 import json
+import pytz
 from typing import List, Optional
 
 BASE_URL = "https://www.boatrace.jp/owpc/pc/race"
@@ -132,7 +133,7 @@ class TodaHandler(BaseVenueHandler):
     def fetch_direct_data(self, rno: int, hd: str):
         url = f"{self.base_xml_url}/{hd}/chokuzen_{rno:02d}.xml"
         xml_text = fetch_html(url)
-        if not xml_text: return {"exhibitions": []}
+        if not xml_text: return super().fetch_direct_data(rno, hd)
         exh_list = []
         try:
             root = ET.fromstring(xml_text)
@@ -145,7 +146,9 @@ class TodaHandler(BaseVenueHandler):
                     "turn": float(racer.find('mawari_time').text) if racer.find('mawari_time').text else None,
                     "straight": float(racer.find('chokusen_time').text) if racer.find('chokusen_time').text else None
                 })
-        except Exception as e: print(f"[SCRAPER] Toda XML Error: {e}")
+        except Exception as e: 
+            print(f"[SCRAPER] Toda XML Error: {e}")
+            return super().fetch_direct_data(rno, hd)
         return {"exhibitions": exh_list}
 
     def fetch_machine_assessment(self, rno: int, hd: str):
@@ -340,7 +343,7 @@ class HeiwajimaHandler(BaseVenueHandler):
     def fetch_direct_data(self, rno: int, hd: str):
         url = f"{self.base_url}/yoso05{rno:02d}.htm?slide=2"
         html = fetch_html(url)
-        if not html: return {"exhibitions": []}
+        if not html: return super().fetch_direct_data(rno, hd)
         soup = BeautifulSoup(html, 'lxml')
         exh_dict = {}
         main_table = soup.find('table', class_='table_syusso')
@@ -359,6 +362,7 @@ class HeiwajimaHandler(BaseVenueHandler):
                                 "straight": float(tds[5].get_text(strip=True)) if tds[5].get_text(strip=True) != "-" else None
                             }
                     except: continue
+        if not exh_dict: return super().fetch_direct_data(rno, hd)
         return {"exhibitions": list(exh_dict.values())}
 
 class TsuHandler(BaseVenueHandler):
@@ -1026,7 +1030,8 @@ def run_background_scraping_cycle(db: Session):
     """
     司令塔として、1 分毎の索敵・同期サイクルを執行。 1 mm の狂いもなく全会場を 100% 確実に支配。
     """
-    now_jst = datetime.datetime.now()
+    tz = pytz.timezone('Asia/Tokyo')
+    now_jst = datetime.datetime.now(tz)
     hd = now_jst.strftime("%Y%m%d")
     print(f"[SCRAPER] Starting loop for {hd} at {now_jst}")
 
