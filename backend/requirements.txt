@@ -1,8 +1,10 @@
 fastapi
-uvicorn
+uvicorn[standard]
 requests
 pandas
 beautifulsoup4
+lxml
 sqlalchemy
 psycopg2-binary
 python-dotenv
+pydantic
