@@ -573,22 +573,14 @@ class GamagoriHandler(BaseVenueHandler):
         js_text = fetch_html(js_url)
         if not js_text: return assessment
         
-        def _extract(func_name, text):
-            block_m = re.search(f'function {func_name}.*?{{(.*?)}}', text, re.DOTALL)
-            res = {}
-            if block_m:
-                block = block_m.group(1)
-                for m in re.finditer(r"strTouban\s*===\s*'(\d+)'\)\{\s*strComment\s*=\s*'([^']+)'", block):
-                    res[m.group(1)] = m.group(2)
-            return res
-
-        before = _extract('funcBeforeComment', js_text)
-        today = _extract('funcToDayComment', js_text)
+        # JS全体の strTouban === '登番'){ strComment = 'コメント'; } を抽出 (後勝ちで当日コメントが優先される)
+        toban_to_comment = {}
+        for m in re.finditer(r"strTouban\s*===\s*'(\d+)'\)\{\s*strComment\s*=\s*'([^']+)'", js_text):
+            toban_to_comment[m.group(1)] = m.group(2)
 
         # 3. 取得した 登番 を軸に、枠番に対するコメントを1文字の漏れもなく融合
         for waku, toban in waku_to_toban.items():
-            com = today.get(toban)
-            if not com: com = before.get(toban)
+            com = toban_to_comment.get(toban)
             if com: assessment[waku] = f"生の声:{com}"
                 
         return assessment
@@ -731,11 +723,10 @@ class OmuraHandler(BaseVenueHandler):
 
     def fetch_direct_data(self, rno: int, hd: str):
         direct_data = super().fetch_direct_data(rno, hd)
-        url = f"https://omurakyotei.jp/include2/iframe_live.php?dspkbn=chokuzen&liveday={hd}&liverace={rno}&ajaxaccess"
+        url = f"https://omurakyotei.jp/yosou/include/new_top_iframe_chokuzen_2.php?day={hd}&race={rno}"
         try:
             res = requests.get(url, timeout=10)
             if res.status_code == 200:
-                res.encoding = 'shift_jis'
                 soup = BeautifulSoup(res.text, 'lxml')
                 table = soup.find('table', id='tblchokuzen_detail')
                 if table:
@@ -763,11 +754,10 @@ class OmuraHandler(BaseVenueHandler):
 
     def fetch_machine_assessment(self, rno: int, hd: str):
         assessment = {}
-        url = f"https://omurakyotei.jp/include2/iframe_live.php?dspkbn=chokuzen&liveday={hd}&liverace={rno}&ajaxaccess"
+        url = f"https://omurakyotei.jp/yosou/include/new_top_iframe_chokuzen_2.php?day={hd}&race={rno}"
         try:
             res = requests.get(url, timeout=10)
             if res.status_code == 200:
-                res.encoding = 'shift_jis'
                 soup = BeautifulSoup(res.text, 'lxml')
                 kisya = soup.find('div', id='kisyacomment')
                 if kisya:
